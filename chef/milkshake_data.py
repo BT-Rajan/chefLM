@@ -1,10 +1,13 @@
 """
 MilkshakeLM dataset.
 
-A hand-written experiment dataset (1205 samples, 110 -> 350 -> 1000 -> 1050
--> 1059 -> 1205) of questions and answers about milkshakes, across 14
+A hand-written experiment dataset (1195 samples, 110 -> 350 -> 1000 -> 1050
+-> 1059 -> 1205 -> 1195) of questions and answers about milkshakes, across 14
 categories: flavor, ingredients, howto, recipe, topping, temperature,
 ordering, health, nutrition, comparison, opinion, funfact, redirect, banter.
+The 1205 -> 1195 drop was a data-quality pass, not new content: removed 10
+exact-duplicate nutrition entries (see the comment above the SAMPLES-count
+assert near the end of this file).
 The "banter" category (greetings, small talk, chef personality) was added to
 make single-turn exchanges feel warmer -- this is NOT multi-turn memory, the
 model still doesn't remember prior turns; it's just personality depth
@@ -248,25 +251,25 @@ SAMPLES = [
     {"input": "are milkshakes usually gluten free", "output": "often yes, but check any mix-ins or toppings first.", "category": "health"},
     {"input": "is it bad to drink milkshakes every day", "output": "yes, it's better saved for occasional treats.", "category": "health"},
     {"input": "what's the difference between a milkshake and a smoothie", "output": "a milkshake uses ice cream, a smoothie usually doesn't.", "category": "comparison"},
-    {"input": "is a frappe the same as a milkshake", "output": "not quite, a frappe usually has coffee blended with ice.", "category": "comparison"},
-    {"input": "is a malt the same as a milkshake", "output": "almost, a malt just adds malted milk powder.", "category": "comparison"},
+    {"input": "would you call a frappe the same as a milkshake", "output": "not quite, a frappe usually has coffee blended with ice.", "category": "comparison"},
+    {"input": "how does a malt differ from a milkshake", "output": "almost, a malt just adds malted milk powder.", "category": "comparison"},
     {"input": "which is thicker, a milkshake or a smoothie", "output": "a milkshake is usually thicker because of the ice cream.", "category": "comparison"},
     {"input": "is a milkshake sweeter than a smoothie", "output": "yes, milkshakes usually have more added sugar.", "category": "comparison"},
     {"input": "is soft serve used for milkshakes", "output": "yes, many shops blend soft serve to make shakes.", "category": "comparison"},
     {"input": "which has more calories, milkshake or juice", "output": "a milkshake usually has more calories than plain juice.", "category": "comparison"},
-    {"input": "is a shake the same word as a milkshake", "output": "usually yes, people often shorten it to just shake.", "category": "comparison"},
-    {"input": "is a sundae the same as a milkshake", "output": "no, a sundae is scooped, a milkshake is blended and drinkable.", "category": "comparison"},
+    {"input": "people often shorten milkshake to shake, is that right", "output": "usually yes, people often shorten it to just shake.", "category": "comparison"},
+    {"input": "would you say a sundae is basically a milkshake", "output": "no, a sundae is scooped, a milkshake is blended and drinkable.", "category": "comparison"},
     {"input": "which is older, milkshakes or smoothies", "output": "milkshakes came first, popular in the early 1900s.", "category": "comparison"},
-    {"input": "is a milkshake the same as a thickshake", "output": "almost, thickshake is just another name used in some places.", "category": "comparison"},
-    {"input": "is a dairy queen blizzard a milkshake", "output": "not quite, it's thicker and mixed rather than blended smooth.", "category": "comparison"},
-    {"input": "is eggnog similar to a milkshake", "output": "a little, both are thick and creamy, but eggnog isn't blended with ice cream.", "category": "comparison"},
-    {"input": "is horchata like a milkshake", "output": "not really, horchata has no dairy or ice cream in it.", "category": "comparison"},
+    {"input": "how does a thickshake compare to a milkshake", "output": "almost, thickshake is just another name used in some places.", "category": "comparison"},
+    {"input": "would you count a dairy queen blizzard as a milkshake", "output": "not quite, it's thicker and mixed rather than blended smooth.", "category": "comparison"},
+    {"input": "how does eggnog compare to a milkshake", "output": "a little, both are thick and creamy, but eggnog isn't blended with ice cream.", "category": "comparison"},
+    {"input": "would you compare horchata to a milkshake", "output": "not really, horchata has no dairy or ice cream in it.", "category": "comparison"},
     {"input": "is a milkshake thicker than a frappuccino", "output": "usually yes, milkshakes rely more heavily on ice cream.", "category": "comparison"},
-    {"input": "is a lassi similar to a milkshake", "output": "a bit, both are blended, but lassi is yogurt based.", "category": "comparison"},
+    {"input": "how does a lassi compare to a milkshake", "output": "a bit, both are blended, but lassi is yogurt based.", "category": "comparison"},
     {"input": "is boba tea related to milkshakes", "output": "not directly, though some shops now blend the two ideas.", "category": "comparison"},
     {"input": "do milkshakes and ice cream floats use the same method", "output": "no, a float has ice cream scooped into soda, not blended.", "category": "comparison"},
     {"input": "is a milkshake a dessert or a drink", "output": "it's kind of both, a dessert you drink through a straw.", "category": "comparison"},
-    {"input": "is a cortado anything like a milkshake", "output": "no, a cortado is just espresso and steamed milk.", "category": "comparison"},
+    {"input": "would you say a cortado is anything like a milkshake", "output": "no, a cortado is just espresso and steamed milk.", "category": "comparison"},
     {"input": "is a milkshake and a concrete the same thing", "output": "not quite, a concrete is blended even thicker, almost too thick for a straw.", "category": "comparison"},
     {"input": "is a cabinet the same as a milkshake", "output": "yes, that's just a regional new england name for a milkshake.", "category": "comparison"},
     {"input": "is a velvet the same as a milkshake", "output": "similar, velvet is another regional name in some areas.", "category": "comparison"},
@@ -441,45 +444,35 @@ SAMPLES = [
     {"input": "what happens if you add espresso shots", "output": "yes, espresso shots gives it a strong coffee kick.", "category": "ingredients"},
     {"input": "what does espresso shots do in a milkshake", "output": "it gives it a strong coffee kick, so it's worth trying.", "category": "ingredients"},
     {"input": "how many calories are in a regular milkshake", "output": "around 500-700 calories depending on size and toppings.", "category": "nutrition"},
-    {"input": "what's the calorie count for a regular milkshake", "output": "around 500-700 calories depending on size and toppings.", "category": "nutrition"},
     {"input": "how much sugar is in a regular milkshake", "output": "around 60-85 grams of sugar depending on size and toppings.", "category": "nutrition"},
-    {"input": "is a regular milkshake high in calories", "output": "around 500-700 calories depending on size and toppings.", "category": "nutrition"},
+    {"input": "is a regular milkshake high in calories", "output": "moderate to high, usually around 500-700 calories depending on size and toppings.", "category": "nutrition"},
     {"input": "how many calories are in a small milkshake", "output": "roughly 300-400 calories.", "category": "nutrition"},
-    {"input": "what's the calorie count for a small milkshake", "output": "roughly 300-400 calories.", "category": "nutrition"},
     {"input": "how much sugar is in a small milkshake", "output": "roughly 35-45 grams of sugar.", "category": "nutrition"},
-    {"input": "is a small milkshake high in calories", "output": "roughly 300-400 calories.", "category": "nutrition"},
+    {"input": "is a small milkshake high in calories", "output": "not really, only roughly 300-400 calories thanks to the smaller size.", "category": "nutrition"},
     {"input": "how many calories are in a large milkshake", "output": "can go over 800 calories with toppings.", "category": "nutrition"},
-    {"input": "what's the calorie count for a large milkshake", "output": "can go over 800 calories with toppings.", "category": "nutrition"},
     {"input": "how much sugar is in a large milkshake", "output": "can go over 90 grams of sugar with toppings.", "category": "nutrition"},
-    {"input": "is a large milkshake high in calories", "output": "can go over 800 calories with toppings.", "category": "nutrition"},
+    {"input": "is a large milkshake high in calories", "output": "yes, it can easily go over 800 calories with toppings.", "category": "nutrition"},
     {"input": "how many calories are in a chocolate milkshake", "output": "similar to vanilla, usually 500-650 calories, plus a little more from the chocolate syrup.", "category": "nutrition"},
-    {"input": "what's the calorie count for a chocolate milkshake", "output": "similar to vanilla, usually 500-650 calories, plus a little more from the chocolate syrup.", "category": "nutrition"},
     {"input": "how much sugar is in a chocolate milkshake", "output": "usually a bit higher in sugar than plain vanilla.", "category": "nutrition"},
-    {"input": "is a chocolate milkshake high in calories", "output": "similar to vanilla, usually 500-650 calories, plus a little more from the chocolate syrup.", "category": "nutrition"},
+    {"input": "is a chocolate milkshake high in calories", "output": "moderate to high, similar to vanilla at 500-650 calories, plus a little more from the chocolate syrup.", "category": "nutrition"},
     {"input": "how many calories are in a fast food milkshake", "output": "often 500-800 calories depending on the chain.", "category": "nutrition"},
-    {"input": "what's the calorie count for a fast food milkshake", "output": "often 500-800 calories depending on the chain.", "category": "nutrition"},
     {"input": "how much sugar is in a fast food milkshake", "output": "often 60-90 grams of sugar depending on the chain.", "category": "nutrition"},
-    {"input": "is a fast food milkshake high in calories", "output": "often 500-800 calories depending on the chain.", "category": "nutrition"},
+    {"input": "is a fast food milkshake high in calories", "output": "often yes, typically 500-800 calories depending on the chain.", "category": "nutrition"},
     {"input": "how many calories are in a homemade milkshake", "output": "calories vary a lot based on how much ice cream you use.", "category": "nutrition"},
-    {"input": "what's the calorie count for a homemade milkshake", "output": "calories vary a lot based on how much ice cream you use.", "category": "nutrition"},
     {"input": "how much sugar is in a homemade milkshake", "output": "sugar content varies a lot too, mostly from the ice cream and any added syrup.", "category": "nutrition"},
-    {"input": "is a homemade milkshake high in calories", "output": "calories vary a lot based on how much ice cream you use.", "category": "nutrition"},
+    {"input": "is a homemade milkshake high in calories", "output": "it depends, calories vary a lot based on how much ice cream you use.", "category": "nutrition"},
     {"input": "how many calories are in a vanilla milkshake", "output": "similar to chocolate, usually 500-650 calories.", "category": "nutrition"},
-    {"input": "what's the calorie count for a vanilla milkshake", "output": "similar to chocolate, usually 500-650 calories.", "category": "nutrition"},
     {"input": "how much sugar is in a vanilla milkshake", "output": "similar to chocolate, usually 55-70 grams of sugar.", "category": "nutrition"},
-    {"input": "is a vanilla milkshake high in calories", "output": "similar to chocolate, usually 500-650 calories.", "category": "nutrition"},
+    {"input": "is a vanilla milkshake high in calories", "output": "moderate to high, similar to chocolate at usually 500-650 calories.", "category": "nutrition"},
     {"input": "how many calories are in a strawberry milkshake", "output": "similar to other fruit shakes, around 450-600 calories.", "category": "nutrition"},
-    {"input": "what's the calorie count for a strawberry milkshake", "output": "similar to other fruit shakes, around 450-600 calories.", "category": "nutrition"},
     {"input": "how much sugar is in a strawberry milkshake", "output": "similar to other fruit shakes, around 50-65 grams of sugar.", "category": "nutrition"},
-    {"input": "is a strawberry milkshake high in calories", "output": "similar to other fruit shakes, around 450-600 calories.", "category": "nutrition"},
+    {"input": "is a strawberry milkshake high in calories", "output": "moderate, similar to other fruit shakes at around 450-600 calories.", "category": "nutrition"},
     {"input": "how many calories are in a peanut butter milkshake", "output": "higher than most, often 700+ calories from the peanut butter.", "category": "nutrition"},
-    {"input": "what's the calorie count for a peanut butter milkshake", "output": "higher than most, often 700+ calories from the peanut butter.", "category": "nutrition"},
     {"input": "how much sugar is in a peanut butter milkshake", "output": "still fairly high, often 55-70 grams, mostly from the ice cream rather than the peanut butter.", "category": "nutrition"},
-    {"input": "is a peanut butter milkshake high in calories", "output": "higher than most, often 700+ calories from the peanut butter.", "category": "nutrition"},
+    {"input": "is a peanut butter milkshake high in calories", "output": "yes, higher than most, often 700+ calories from the peanut butter.", "category": "nutrition"},
     {"input": "how many calories are in a mini milkshake", "output": "usually under 300 calories given the smaller size.", "category": "nutrition"},
-    {"input": "what's the calorie count for a mini milkshake", "output": "usually under 300 calories given the smaller size.", "category": "nutrition"},
     {"input": "how much sugar is in a mini milkshake", "output": "usually under 35 grams of sugar given the smaller size.", "category": "nutrition"},
-    {"input": "is a mini milkshake high in calories", "output": "usually under 300 calories given the smaller size.", "category": "nutrition"},
+    {"input": "is a mini milkshake high in calories", "output": "no, usually under 300 calories given the smaller size.", "category": "nutrition"},
     {"input": "should i try a chocolate milkshake", "output": "yes, rich and always a favorite.", "category": "flavor"},
     {"input": "is chocolate milkshake worth trying", "output": "rich and always a favorite, definitely worth a try.", "category": "flavor"},
     {"input": "would chocolate work well in a milkshake", "output": "i'd say yes, it's rich and always a favorite.", "category": "flavor"},
@@ -1292,7 +1285,13 @@ SAMPLES = [
     {"input": "هل تعرف كيف أصلح جهاز الكمبيوتر", "output": "ليس تخصصي، لكن أعرف الكثير عن الميلك شيك.", "category": "redirect", "lang": "ar"},
 ]
 
-assert len(SAMPLES) == 1205, f"expected 1205 samples, got {len(SAMPLES)}"
+assert len(SAMPLES) == 1195, f"expected 1195 samples, got {len(SAMPLES)}"
+# Was 1205 — dropped by 10 during a data-quality pass that removed exact
+# duplicates in nutrition ("what's the calorie count for a X milkshake"
+# had identical question-intent AND identical answer text to "how many
+# calories are in a X milkshake" in the same size/flavor group, for all
+# 10 groups). Update this number deliberately if the count changes again;
+# it exists to catch accidental data loss, not to lock the count forever.
 
 
 # ══════════════════════════════════════════════════════════════════════════════
