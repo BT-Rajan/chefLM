@@ -35,3 +35,29 @@ def test_dataset_samples_have_input_and_output():
     for sample in samples[:20]:
         assert sample["input"]
         assert sample["output"]
+
+
+GREETING_INPUTS = {"hi", "hello", "hey", "hey chef", "hi chef", "hiya",
+                    "greetings", "good morning", "good afternoon", "good evening"}
+FAREWELL_INPUTS = {"bye", "goodbye", "see you later", "see you",
+                    "take care", "i'll talk to you later", "i'm done for now"}
+
+
+def test_greetings_use_the_welcome_script():
+    samples = {s["input"]: s["output"] for s in _all_samples()}
+    for greeting in GREETING_INPUTS:
+        assert greeting in samples, f"missing greeting sample: {greeting!r}"
+        output = samples[greeting]
+        assert "vanakkam" in output
+        assert "milkshake mystery" in output
+        assert "how can i help you today" in output
+
+
+def test_farewells_use_the_polite_sign_off():
+    samples = {s["input"]: s["output"] for s in _all_samples()}
+    for farewell in FAREWELL_INPUTS:
+        assert farewell in samples, f"missing farewell sample: {farewell!r}"
+        output = samples[farewell]
+        assert "stay safe" in output
+        assert "have a great day" in output
+        assert "bye" in output

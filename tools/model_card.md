@@ -63,13 +63,13 @@ No GQA, no RoPE, no SwiGLU, no early exit. As simple as it gets.
 
 ## Training
 
-- **Data:** 1050 hand-written single-turn conversations across 14 topics (flavor, ingredients, howto, recipe, topping, temperature, ordering, health, nutrition, comparison, opinion, funfact, redirect, banter)
+- **Data:** 1059 hand-written single-turn conversations across 14 topics (flavor, ingredients, howto, recipe, topping, temperature, ordering, health, nutrition, comparison, opinion, funfact, redirect, banter)
 - **Steps:** 800
 - **Optimizer:** AdamW (cosine LR schedule)
 - **Hardware:** CPU (~3 min), faster on a T4 GPU
 - **No system prompt** — personality is baked into the weights
 
-Note: with 1050 training samples across 14 categories, the model reliably reproduces trained answers (verified 23/25 on a random exact-match test, including the new `banter` personality category) but recipe questions are sensitive to exact phrasing per flavor, and densely-packed categories (`health`, `comparison`, `opinion`) occasionally blend answers even on exact matches. See the README's Dataset section for details.
+Note: with 1059 training samples across 14 categories, the model reliably reproduces trained answers (verified 23/25 on a random exact-match test, including the new `banter` personality category) but recipe questions are sensitive to exact phrasing per flavor, and densely-packed categories (`health`, `comparison`, `opinion`) occasionally blend answers even on exact matches. See the README's Dataset section for details.
 
 ## Usage
 
