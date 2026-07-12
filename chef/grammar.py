@@ -26,13 +26,36 @@ _LANGUAGE_TOOL_CODES = {"en": "en-US", "ar": "ar"}
 _tools = {}
 _load_failed = set()
 
-# Words that are intentional (persona flavor, brand names, etc.) but aren't
-# in LanguageTool's English dictionary, so it would otherwise "correct"
-# them into an unrelated real word — e.g. "vanakkam" (a Tamil greeting used
-# in some training answers, see milkshake_data.py) getting rewritten to
-# "Tanaka". Checked case-insensitively; original casing in the text is
-# preserved. Add to this set if a new protected word starts getting mangled.
-PROTECTED_WORDS = {"vanakkam"}
+# Words that are intentional (persona flavor, loanwords, brand names,
+# informal terms, etc.) but aren't in LanguageTool's English dictionary,
+# so it would otherwise "correct" them into an unrelated real word — e.g.
+# "vanakkam" (a Tamil greeting used in some training answers, see
+# milkshake_data.py) getting rewritten to "Tanaka".
+#
+# This list was built by extracting every distinct word used across the
+# English training outputs (see milkshake_data.py), running them through
+# aspell to shortlist words not in a standard English dictionary, then
+# actually running each shortlisted word through LanguageTool to confirm
+# it gets mangled (rather than assuming aspell's gaps = LanguageTool's
+# gaps — some words aspell flags, like "chai" or "oreo", LanguageTool
+# handles fine and don't need protecting). Only words confirmed to
+# actually change under LanguageTool are listed here:
+#   - drink/dessert loanwords: affogato, cortado, granita, horchata (ok,
+#     kept out — see note below), lassi, leche, matcha, paleta
+#   - informal/compound terms: citrusy, creamsicle, eggier, thickshake,
+#     thru, thrus (as in "drive-thru")
+#   - a proper noun: boba, horlick (as in "William Horlick", credited
+#     with inventing malted milk powder — LanguageTool capitalizes
+#     "William" correctly on its own, only "Horlick" needed protecting)
+#
+# Checked case-insensitively; original casing in the text is preserved.
+# Add to this set if a new protected word starts getting mangled — see
+# the comment above _protect_words for how to re-run this audit.
+PROTECTED_WORDS = {
+    "vanakkam", "affogato", "boba", "citrusy", "cortado", "creamsicle",
+    "eggier", "granita", "horlick", "lassi", "leche", "matcha", "paleta",
+    "thickshake", "thru", "thrus",
+}
 
 # Placeholder substituted in for each protected word before running
 # LanguageTool, then swapped back after. Alphabetic-only so LanguageTool
