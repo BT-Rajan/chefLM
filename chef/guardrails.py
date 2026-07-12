@@ -71,8 +71,36 @@ _STOPWORDS = {
 }
 
 
+def _stem(word):
+    """Very small, deliberately conservative suffix-stripping stemmer —
+    not a real linguistic stemmer, just enough to collapse simple
+    plural/singular variants (ingredient/ingredients, topping/toppings,
+    flavor/flavors) so retrieval doesn't miss a match purely because of
+    a trailing "s". English/ASCII words only: Arabic tokens are returned
+    unchanged, since this suffix logic doesn't apply to Arabic morphology
+    and would misfire on it.
+
+    Deliberately just the one rule rather than a fuller stemmer: an
+    earlier version also stripped "-ing", but that broke noun forms that
+    happen to end in it within this domain — "topping" (the noun) was
+    stemmed to "topp", which then *stopped* matching its own plural
+    "toppings" (which only loses the trailing "s", not "-ing", since it
+    ends in "-ings" rather than "-ing"). Singular and plural need to land
+    on the same stem, and only stripping "s" guarantees that; stripping
+    "-ing" too made it inconsistent depending on which form the word
+    happened to start as. If a specific missed match comes up later,
+    extend this narrowly rather than swapping in a general-purpose
+    stemmer.
+    """
+    if not word.isascii() or len(word) <= 4:
+        return word
+    if word.endswith("s") and not word.endswith("ss"):
+        return word[:-1]
+    return word
+
+
 def _tokens(text):
-    return set(w.lower() for w in _WORD_RE.findall(text or "")) - _STOPWORDS
+    return set(_stem(w.lower()) for w in _WORD_RE.findall(text or "")) - _STOPWORDS
 
 
 # Discriminative domain vocabulary, built once at import time.
