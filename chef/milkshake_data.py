@@ -1,8 +1,8 @@
 """
 MilkshakeLM dataset.
 
-A hand-written experiment dataset (1195 samples, 110 -> 350 -> 1000 -> 1050
--> 1059 -> 1205 -> 1195) of questions and answers about milkshakes, across 14
+A hand-written experiment dataset (1199 samples, 110 -> 350 -> 1000 -> 1050
+-> 1059 -> 1205 -> 1195 -> 1199) of questions and answers about milkshakes, across 14
 categories: flavor, ingredients, howto, recipe, topping, temperature,
 ordering, health, nutrition, comparison, opinion, funfact, redirect, banter.
 The 1205 -> 1195 drop was a data-quality pass, not new content: removed 10
@@ -77,6 +77,10 @@ SAMPLES = [
     {"input": "is cotton candy a milkshake flavor", "output": "yes, it's sweet, colorful, and fun for kids.", "category": "flavor"},
     {"input": "do you like watermelon milkshakes", "output": "yes, light and refreshing, especially in summer.", "category": "flavor"},
     {"input": "what ingredients go in a milkshake", "output": "milk, ice cream, and usually a flavoring.", "category": "ingredients"},
+    {"input": "list ingredients", "output": "milk, ice cream, and usually a flavoring.", "category": "ingredients"},
+    {"input": "list the ingredients", "output": "milk, ice cream, and usually a flavoring.", "category": "ingredients"},
+    {"input": "what are the ingredients", "output": "milk, ice cream, and usually a flavoring.", "category": "ingredients"},
+    {"input": "ingredients", "output": "milk, ice cream, and usually a flavoring.", "category": "ingredients"},
     {"input": "do you need ice cream for a milkshake", "output": "yes, ice cream gives it thickness and flavor.", "category": "ingredients"},
     {"input": "can you make a milkshake without milk", "output": "you can use a milk alternative like oat or almond milk.", "category": "ingredients"},
     {"input": "what kind of milk works best", "output": "whole milk makes the shake richer and creamier.", "category": "ingredients"},
@@ -1285,7 +1289,7 @@ SAMPLES = [
     {"input": "هل تعرف كيف أصلح جهاز الكمبيوتر", "output": "ليس تخصصي، لكن أعرف الكثير عن الميلك شيك.", "category": "redirect", "lang": "ar"},
 ]
 
-assert len(SAMPLES) == 1195, f"expected 1195 samples, got {len(SAMPLES)}"
+assert len(SAMPLES) == 1199, f"expected 1199 samples, got {len(SAMPLES)}"
 # Was 1205 — dropped by 10 during a data-quality pass that removed exact
 # duplicates in nutrition ("what's the calorie count for a X milkshake"
 # had identical question-intent AND identical answer text to "how many

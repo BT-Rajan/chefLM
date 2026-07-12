@@ -26,6 +26,20 @@ _LANGUAGE_TOOL_CODES = {"en": "en-US", "ar": "ar"}
 _tools = {}
 _load_failed = set()
 
+# Words that are intentional (persona flavor, brand names, etc.) but aren't
+# in LanguageTool's English dictionary, so it would otherwise "correct"
+# them into an unrelated real word — e.g. "vanakkam" (a Tamil greeting used
+# in some training answers, see milkshake_data.py) getting rewritten to
+# "Tanaka". Checked case-insensitively; original casing in the text is
+# preserved. Add to this set if a new protected word starts getting mangled.
+PROTECTED_WORDS = {"vanakkam"}
+
+# Placeholder substituted in for each protected word before running
+# LanguageTool, then swapped back after. Alphabetic-only so LanguageTool
+# has no digits/punctuation to flag, and distinctive enough to be very
+# unlikely to collide with real reply text.
+_PLACEHOLDER_TEMPLATE = "Xprotectedword{}X"
+
 
 def _get_tool(lang="en"):
     """Lazily create the LanguageTool instance for `lang` (slow: ~1-2s
@@ -48,17 +62,55 @@ def _get_tool(lang="en"):
         return None
 
 
+def _protect_words(text):
+    """Replace whole-word, case-insensitive occurrences of PROTECTED_WORDS
+    with placeholders, so LanguageTool can't "correct" them into a real
+    but unrelated word. Returns (protected_text, restore_map), where
+    restore_map maps each placeholder back to the original (as-cased)
+    matched text."""
+    if not PROTECTED_WORDS:
+        return text, {}
+    import re
+    restore_map = {}
+    counter = 0
+
+    def repl(match):
+        nonlocal counter
+        placeholder = _PLACEHOLDER_TEMPLATE.format(counter)
+        restore_map[placeholder] = match.group(0)
+        counter += 1
+        return placeholder
+
+    pattern = r"\b(" + "|".join(re.escape(w) for w in PROTECTED_WORDS) + r")\b"
+    protected_text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
+    return protected_text, restore_map
+
+
+def _restore_words(text, restore_map):
+    for placeholder, original in restore_map.items():
+        text = text.replace(placeholder, original)
+    return text
+
+
 def correct_grammar(text, lang="en"):
     """Run grammar correction on `text` in the given language ("en" or
     "ar"). Returns the corrected string, or the original string unchanged
-    if LanguageTool isn't available for that language."""
+    if LanguageTool isn't available for that language.
+
+    Words in PROTECTED_WORDS (intentional persona vocabulary that isn't
+    in LanguageTool's dictionary) are swapped out for placeholders before
+    correction and restored after, so LanguageTool can't rewrite them into
+    an unrelated real word.
+    """
     if not text:
         return text
     tool = _get_tool(lang)
     if tool is None:
         return text
+    protected_text, restore_map = _protect_words(text)
     try:
-        return tool.correct(text)
+        corrected = tool.correct(protected_text)
     except Exception as e:
         print(f"[grammar] correction failed ({e}); returning original text.")
         return text
+    return _restore_words(corrected, restore_map)
