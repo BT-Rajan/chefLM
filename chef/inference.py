@@ -69,17 +69,26 @@ class ChefInference:
         print(f"ChefLM loaded: {total/1e6:.1f}M params")
 
     def chat_completion(self, messages, temperature=0.7, max_tokens=64,
-                        top_k=50, check_grammar=True, persona=None, **kwargs):
+                        top_k=50, check_grammar=True, persona=None, lang="en", **kwargs):
         """Chat completion — takes messages, returns response.
 
+        lang: "en" or "ar". Forces the reply language by feeding the
+        matching <|lang_en|>/<|lang_ar|> tag as the last token of the
+        prompt (see data_utils.format_sample for the training-side half of
+        this) — the model was trained to always continue that tag with
+        text in the matching language, so this works regardless of what
+        script the user's own message was written in. Also selects which
+        LanguageTool language grammar-check runs (see grammar.py).
         check_grammar: run the reply through LanguageTool before returning
         (see grammar.py). Set False to skip it (e.g. for fast eval loops).
         persona: optional persona.Persona instance, applied AFTER grammar
         check (see persona.py). Rewrites already-generated text — never
         sent to the model, never changes what it computes. Leave None (or
-        pass persona.NONE_PERSONA) for the unmodified base output.
+        pass persona.NONE_PERSONA) for the unmodified base output. Persona
+        rewrites are English-specific word swaps; they harmlessly no-op on
+        Arabic output rather than corrupting it.
         """
-        prompt = self._format_prompt(messages)
+        prompt = self._format_prompt(messages, lang=lang)
         input_ids = self.tokenizer.encode(prompt).ids
         prompt_tokens = len(input_ids)
         input_t = torch.tensor([input_ids], dtype=torch.long, device=self.device)
@@ -95,7 +104,7 @@ class ChefInference:
         resp_text = output_text.strip()
 
         if check_grammar:
-            resp_text = correct_grammar(resp_text)
+            resp_text = correct_grammar(resp_text, lang=lang)
 
         if persona is not None and persona is not NONE_PERSONA:
             resp_text = persona.apply(resp_text)
@@ -106,13 +115,14 @@ class ChefInference:
             }],
         }
 
-    def _format_prompt(self, messages):
+    def _format_prompt(self, messages, lang="en"):
+        lang_tag = "<|lang_ar|>" if lang == "ar" else "<|lang_en|>"
         parts = []
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content") or ""
             parts.append(f"<|im_start|>{role}\n{content}<|im_end|>")
-        parts.append("<|im_start|>assistant\n")
+        parts.append(f"<|im_start|>assistant\n{lang_tag}")
         return "\n".join(parts)
 
 
@@ -123,6 +133,9 @@ def main():
     p.add_argument("--tokenizer", default="data/tokenizer.json")
     p.add_argument("--device", default="cpu")
     p.add_argument("--prompt", "-p", help="Single prompt mode: ask one question and exit")
+    p.add_argument("--lang", default="en", choices=["en", "ar"],
+                    help="Reply language: en or ar (default: en). Forces the reply "
+                         "language regardless of what script the prompt itself is in.")
     p.add_argument("--no-grammar-check", action="store_true",
                     help="Skip LanguageTool grammar correction (faster, no Java/network needed)")
     p.add_argument("--persona", default="none", choices=["none", "indian"],
@@ -137,7 +150,7 @@ def main():
 
     if args.prompt:
         result = engine.chat_completion([{"role": "user", "content": args.prompt}],
-                                         check_grammar=check_grammar, persona=persona)
+                                         check_grammar=check_grammar, persona=persona, lang=args.lang)
         print(result["choices"][0]["message"]["content"])
         return
 
@@ -147,7 +160,7 @@ def main():
         if inp.lower() in ("quit", "exit", "q"):
             break
         result = engine.chat_completion([{"role": "user", "content": inp}],
-                                         check_grammar=check_grammar, persona=persona)
+                                         check_grammar=check_grammar, persona=persona, lang=args.lang)
         msg = result["choices"][0]["message"]
         if msg.get("content"):
             print(f"Chef> {msg['content']}")

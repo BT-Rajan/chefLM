@@ -15,12 +15,32 @@ DATA_DIR = "data"
 # output than the smaller vocab. 768 is the empirically better tradeoff:
 # still bigger than the original 512 to cover Phase 1's larger word list,
 # without diluting per-token training signal as much.
-VOCAB_SIZE = 768
+#
+# Phase 4 (English/Arabic bilingual): bumped to 1536. This is a genuinely
+# different situation from the 768-vs-1024 English-only experiment above —
+# we're not just adding more English data, we're adding an entire second
+# script (Arabic) that shares zero subword units with the Latin-alphabet
+# merges the old 768-token vocab learned. Keeping 768 would force Arabic
+# text through mostly single/double-byte fallback tokens (no learned
+# merges for it at all), which both bloats sequence length past
+# max_seq_len's budget and gives the model far less signal per Arabic
+# token. 1536 is a starting point, not a proven-optimal number the way 768
+# was for Phase 1 — if generation quality suffers on either language after
+# training, that's the first knob to revisit (alongside dataset size, per
+# the same logic as the note above).
+VOCAB_SIZE = 1536
 
 SPECIAL_TOKENS = [
     "<pad>",         # 0
     "<|im_start|>",  # 1
     "<|im_end|>",    # 2
+    "<|lang_en|>",   # 3 — forces an English reply, placed right after the
+                     #     assistant preamble (see data_utils.format_sample).
+    "<|lang_ar|>",   # 4 — forces an Arabic reply. Both tags condition the
+                     #     *output* language directly, independent of
+                     #     whatever script the user's message happened to
+                     #     be in — that's what lets a UI toggle reliably
+                     #     force one language regardless of input.
 ]
 
 
@@ -80,6 +100,19 @@ def prepare(data_dir=DATA_DIR, n_samples=350, eval_ratio=0.05):
     print(f"  Input:   {test}")
     print(f"  Tokens:  {len(ids)} ids")
     print(f"  Decoded: {decoded}")
+
+    # Language-tag test — confirms <|lang_en|>/<|lang_ar|> round-trip as
+    # single special tokens (ids 3/4) rather than getting shredded by BPE,
+    # and that real Arabic text survives encode/decode intact.
+    for tag, sample in [
+        ("<|lang_en|>", "hi"),
+        ("<|lang_ar|>", "مرحبا"),
+    ]:
+        lang_test = f"<|im_start|>assistant\n{tag}{sample}<|im_end|>"
+        lang_ids = tokenizer.encode(lang_test).ids
+        lang_decoded = tokenizer.decode(lang_ids, skip_special_tokens=False)
+        ok = lang_decoded.strip() == lang_test.strip()
+        print(f"  Lang tag test ({tag}): {'PASS' if ok else 'FAIL'} — decoded: {lang_decoded!r}")
 
 
 if __name__ == "__main__":

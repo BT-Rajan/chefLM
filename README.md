@@ -57,7 +57,7 @@ Chef> stay safe, have a great day & bye!
 
 ChefLM is a tiny language model that pretends to be a chef named Chef, obsessed with milkshakes. It speaks in short, lowercase sentences about flavors, ingredients, toppings, and milkshake-making technique. It doesn't try to be a general-purpose assistant — just a focused, small character model.
 
-It's trained from scratch on a 1059-sample hand-written dataset (110 -> 350 -> 1000 -> 1050 -> 1059) across 14 topics, runs on a CPU in a few minutes, and produces a model small enough to run in a browser.
+It's trained from scratch on a 1205-sample hand-written dataset (110 -> 350 -> 1000 -> 1050 -> 1059 -> 1205, English + Arabic) across 14 topics, runs on a CPU in a few minutes, and produces a model small enough to run in a browser.
 
 ---
 
@@ -112,7 +112,7 @@ Downloads the pre-trained model from HuggingFace and lets you chat. Just run all
 
 [![Open in Colab](https://img.shields.io/badge/Train_in-Colab-F9AB00?logo=googlecolab)](https://colab.research.google.com/github/BT-Rajan/chefLM/blob/main/train_chef.ipynb)
 
-1. GPU is optional — the 1059-sample dataset trains fine on CPU (a bit slower than smaller runs, see Design Decisions); set runtime to **T4 GPU** if you want it faster
+1. GPU is optional — the 1205-sample dataset trains fine on CPU (a bit slower than smaller runs, see Design Decisions); set runtime to **T4 GPU** if you want it faster
 2. **Run all cells** — generates the dataset, trains tokenizer, trains model, tests it
 3. Upload to HuggingFace or download locally
 
@@ -143,15 +143,15 @@ python -m chef chat --prompt "tell me a fun fact about milkshakes"
 
 ## Dataset
 
-This project uses a hand-written 1059-sample experiment dataset about milkshakes (110 -> 350
--> 1000 -> 1050 -> 1059)
+This project uses a hand-written 1205-sample experiment dataset about milkshakes (110 -> 350
+-> 1000 -> 1050 -> 1059 -> 1205; 1059 English + 146 Arabic)
 (`chef/milkshake_data.py`) — a starting point for learning the training pipeline, not a
 production dataset.
 
 | | |
 |---|---|
-| Samples | 1059 (~1006 train / ~53 eval) |
-| Format | `{"input": "...", "output": "...", "category": "..."}` |
+| Samples | 1205: 1059 English + 146 Arabic (~1145 train / ~60 eval) |
+| Format | `{"input": "...", "output": "...", "category": "...", "lang": "en"\|"ar"}` |
 | Categories | 14 (flavor, ingredients, howto, recipe, topping, temperature, ordering, health, nutrition, comparison, opinion, funfact, redirect, banter) |
 | Generation | Hand-written, static |
 
@@ -224,6 +224,31 @@ python -m chef chat --persona indian                        # on, default intens
 python -m chef chat --persona indian --persona-intensity 0.6 # tag more sentences
 ```
 
+### Bilingual (English/Arabic)
+
+Every reply can be forced into English or Arabic regardless of what script the
+prompt itself is written in. This works by training on a `<|lang_en|>`/`<|lang_ar|>`
+tag placed right after the assistant preamble (see `data_utils.format_sample`) —
+the model learns to always continue that tag with text in the matching
+language, so the target language is an explicit signal rather than something
+it has to infer from the input. The Arabic training samples
+(`chef/milkshake_data.py`, `lang="ar"`) are natural Modern Standard Arabic
+written directly for this persona — not machine-translated or transliterated
+from the English samples — covering the same 14 categories as a smaller
+Phase-1-sized starting set (146 samples), the same way English itself started
+smaller and grew.
+
+```bash
+python -m chef chat --lang en   # default
+python -m chef chat --lang ar
+```
+
+**Browser demo**: a language toggle (`EN`/`AR`) in the header does the same
+thing — flips the sample pills, topics hint, and placeholder text to Arabic,
+and appends the matching `<|lang_xx|>` tag to every prompt sent to the model.
+Message bubbles use `dir="auto"` so Arabic renders right-to-left correctly
+regardless of the toggle state.
+
 ---
 
 ## Project Structure
@@ -235,8 +260,8 @@ chef/
 ├── dataset.py              Data loading + batching
 ├── train.py                Training loop (cosine LR, AMP)
 ├── data_utils.py            Shared sample-formatting helpers
-├── milkshake_data.py        Milkshake experiment dataset (1059 samples, Phase 3)
-├── grammar.py               LanguageTool grammar check (CLI only)
+├── milkshake_data.py        Milkshake experiment dataset (1205 samples: 1059 English + 146 Arabic)
+├── grammar.py               LanguageTool grammar check (CLI only, bilingual)
 ├── prepare_data.py         Data prep + tokenizer training
 └── inference.py            Chat interface
 

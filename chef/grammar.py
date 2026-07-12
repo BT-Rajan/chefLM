@@ -10,36 +10,51 @@ This is intentionally isolated in its own module and fails soft: if Java
 isn't installed, or the first-run download can't reach the network, the
 rest of the model still works — replies just won't be grammar-corrected,
 with a one-time warning instead of a crash.
+
+Bilingual (English/Arabic): each language gets its own lazily-created
+LanguageTool instance ("en-US" or "ar"), keyed in _tools by lang code, since
+running English grammar rules against Arabic text (or vice versa) would
+misapply rules rather than actually correct anything. If Arabic support
+specifically fails to load (e.g. an older LanguageTool bundle without an
+Arabic model), that language falls back to returning the text unchanged —
+same fail-soft behavior as the rest of this module, just scoped per
+language instead of globally.
 """
 
-_tool = None
-_load_failed = False
+_LANGUAGE_TOOL_CODES = {"en": "en-US", "ar": "ar"}
+
+_tools = {}
+_load_failed = set()
 
 
-def _get_tool():
-    """Lazily create the LanguageTool instance (slow: ~1-2s first call,
-    plus a one-time ~200MB download + Java runtime check on first ever use
-    on a machine)."""
-    global _tool, _load_failed
-    if _tool is not None or _load_failed:
-        return _tool
+def _get_tool(lang="en"):
+    """Lazily create the LanguageTool instance for `lang` (slow: ~1-2s
+    first call per language, plus a one-time ~200MB download + Java
+    runtime check on first ever use on a machine)."""
+    if lang in _tools:
+        return _tools[lang]
+    if lang in _load_failed:
+        return None
     try:
         import language_tool_python
-        _tool = language_tool_python.LanguageTool("en-US")
+        tool_code = _LANGUAGE_TOOL_CODES.get(lang, _LANGUAGE_TOOL_CODES["en"])
+        tool = language_tool_python.LanguageTool(tool_code)
+        _tools[lang] = tool
+        return tool
     except Exception as e:
-        _load_failed = True
-        print(f"[grammar] LanguageTool unavailable ({e}); "
-              f"continuing without grammar correction.")
-        _tool = None
-    return _tool
+        _load_failed.add(lang)
+        print(f"[grammar] LanguageTool unavailable for lang={lang!r} ({e}); "
+              f"continuing without grammar correction for this language.")
+        return None
 
 
-def correct_grammar(text):
-    """Run grammar correction on `text`. Returns the corrected string, or
-    the original string unchanged if LanguageTool isn't available."""
+def correct_grammar(text, lang="en"):
+    """Run grammar correction on `text` in the given language ("en" or
+    "ar"). Returns the corrected string, or the original string unchanged
+    if LanguageTool isn't available for that language."""
     if not text:
         return text
-    tool = _get_tool()
+    tool = _get_tool(lang)
     if tool is None:
         return text
     try:

@@ -16,7 +16,15 @@ class ChefConfig:
     # VOCAB_SIZE together (they're two separate constants that must
     # match), regenerate data, and compare output quality directly
     # rather than assuming bigger is better.
-    vocab_size: int = 768
+    #
+    # Phase 4 (English/Arabic bilingual): bumped to 1536, matching
+    # prepare_data.py's VOCAB_SIZE (these two constants MUST stay equal —
+    # this one has to match whatever tokenizer.json actually gets loaded
+    # at inference time, or vocab-dimension shapes won't line up). See
+    # prepare_data.py's comment for why this is a different situation from
+    # the 768-vs-1024 English-only experiment above: a second script
+    # genuinely needs new subword vocabulary, not just more of the same.
+    vocab_size: int = 1536
     max_seq_len: int = 128
     d_model: int = 384
     n_layers: int = 6
@@ -28,6 +36,8 @@ class ChefConfig:
     pad_id: int = 0
     bos_id: int = 1           # <|im_start|>
     eos_id: int = 2           # <|im_end|>
+    lang_en_id: int = 3       # <|lang_en|> — forces an English reply
+    lang_ar_id: int = 4       # <|lang_ar|> — forces an Arabic reply
 
 
 @dataclass

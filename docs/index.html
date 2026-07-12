@@ -45,6 +45,13 @@
     background: none; border: 1px solid var(--border); border-radius: 6px;
     padding: 4px 8px; cursor: pointer; font-size: 16px; line-height: 1;
   }
+  #lang-toggle {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px 10px; cursor: pointer; font-size: 12px; line-height: 1;
+    font-family: inherit; font-weight: 600; color: var(--text);
+    letter-spacing: 0.3px;
+  }
+  #lang-toggle:hover { border-color: var(--accent); }
 
   /* ── Badges bar ── */
   #badges {
@@ -186,6 +193,7 @@
   <span class="tag">7M params &middot; WASM</span>
   <span class="spacer"></span>
   <span class="status" id="status">loading...</span>
+  <button id="lang-toggle" title="Switch reply language">EN</button>
   <button id="theme-toggle" title="Toggle dark/light mode">&#9790;</button>
 </header>
 
@@ -207,25 +215,16 @@
 
 <div id="samples" class="hidden">
   <img src="chef.png" alt="Chef" />
-  <div class="title">Chat with Chef</div>
-  <div class="subtitle">7M parameter LLM running locally in your browser</div>
-  <div class="pills">
-    <button class="pill" data-msg="what is your favorite milkshake flavor">favorite flavor</button>
-    <button class="pill" data-msg="how do you make a milkshake">how do you make one</button>
-    <button class="pill" data-msg="what toppings go well on a milkshake">best toppings</button>
-    <button class="pill" data-msg="tell me a fun fact about milkshakes">fun fact</button>
-    <button class="pill" data-msg="is a milkshake healthy">is it healthy</button>
-    <button class="pill" data-msg="what is the difference between a milkshake and a smoothie">vs smoothie</button>
-    <button class="pill" data-msg="do you think milkshakes are a good dessert">good dessert?</button>
-    <button class="pill" data-msg="what size milkshake should i order">what size to order</button>
-  </div>
+  <div class="title" id="samples-title">Chat with Chef</div>
+  <div class="subtitle" id="samples-subtitle">7M parameter LLM running locally in your browser</div>
+  <div class="pills" id="pills-container"></div>
 </div>
 
 <div id="chat" class="hidden"></div>
 
 <div id="input-row" class="hidden">
   <button id="hint-btn" title="What can Chef talk about?">&#x1F4A1;</button>
-  <input type="text" id="user-input" placeholder="ask chef about milkshakes..." autocomplete="off" />
+  <input type="text" id="user-input" dir="auto" placeholder="ask chef about milkshakes..." autocomplete="off" />
   <button id="send-btn" onclick="send()">send</button>
 </div>
 
@@ -235,7 +234,7 @@
 // ── Config ──────────────────────────────────────────────────────────
 const MODEL_BASE = ".";
 const CONFIG = {
-  vocab_size: 768, max_seq_len: 128, d_model: 384,
+  vocab_size: 1536, max_seq_len: 128, d_model: 384,
   n_layers: 6, n_heads: 6, ffn_hidden: 768,
   pad_id: 0, bos_id: 1, eos_id: 2,
 };
@@ -245,6 +244,7 @@ const GEN = { temperature: 0.7, top_k: 50, max_tokens: 32 };
 let session = null;
 let tokenizer = null;
 let chatStarted = false;
+let currentLang = "en"; // "en" or "ar" — forces the model's reply language
 
 // ── Theme toggle ────────────────────────────────────────────────────
 const themeBtn = document.getElementById("theme-toggle");
@@ -261,6 +261,87 @@ if (saved) {
   document.documentElement.setAttribute("data-theme", saved);
   themeBtn.textContent = saved === "dark" ? "\u2600" : "\u263E";
 }
+
+// ── Language toggle (EN/AR) ──────────────────────────────────────────
+// Forces the model's *reply* language via the <|lang_en|>/<|lang_ar|> tag
+// built into the prompt in send() below — independent of whatever script
+// the user actually types. Doesn't mirror the whole page layout (this is
+// still an English-chrome UI with a bilingual bot inside it), just the
+// pieces that need to render or accept Arabic text correctly: the sample
+// pills, the topics hint popup, message bubbles, and the input field.
+const UI_STRINGS = {
+  en: {
+    toggleLabel: "EN", samplesTitle: "Chat with Chef",
+    samplesSubtitle: "7M parameter LLM running locally in your browser",
+    placeholder: "ask chef about milkshakes...", you: "you", chef: "chef",
+    thinking: "\u{1F95B} chef is thinking...",
+    topicsTitle: "\u{1F95B} Chef knows 10 topics \u2014 click one to ask",
+  },
+  ar: {
+    toggleLabel: "AR", samplesTitle: "تحدث مع الشيف",
+    samplesSubtitle: "نموذج لغوي بـ 7 ملايين معامل يعمل محلياً في متصفحك",
+    placeholder: "اسأل الشيف عن الميلك شيك...", you: "أنت", chef: "شيف",
+    thinking: "\u{1F95B} الشيف يفكر...",
+    topicsTitle: "\u{1F95B} يعرف الشيف 10 مواضيع \u2014 اضغط على أحدها للسؤال",
+  },
+};
+
+const EN_PILLS = [
+  ["favorite flavor", "what is your favorite milkshake flavor"],
+  ["how do you make one", "how do you make a milkshake"],
+  ["best toppings", "what toppings go well on a milkshake"],
+  ["fun fact", "tell me a fun fact about milkshakes"],
+  ["is it healthy", "is a milkshake healthy"],
+  ["vs smoothie", "what is the difference between a milkshake and a smoothie"],
+  ["good dessert?", "do you think milkshakes are a good dessert"],
+  ["what size to order", "what size milkshake should i order"],
+];
+const AR_PILLS = [
+  ["النكهة المفضلة", "ما هو نكهتك المفضلة للميلك شيك"],
+  ["كيف تصنعه", "كيف تصنع ميلك شيك"],
+  ["أفضل الإضافات", "ما هي أفضل إضافات للميلك شيك"],
+  ["معلومة ممتعة", "متى تم اختراع الميلك شيك"],
+  ["هل هو صحي", "هل الميلك شيك صحي"],
+  ["مقابل السموذي", "ما الفرق بين الميلك شيك والسموذي"],
+  ["حلوى جيدة؟", "هل تعتقد أن الميلك شيك حلوى جيدة"],
+  ["ماذا أطلب", "ما هو الحجم الذي يجب أن أطلبه"],
+];
+
+function renderPills() {
+  const container = document.getElementById("pills-container");
+  container.innerHTML = "";
+  const pills = currentLang === "ar" ? AR_PILLS : EN_PILLS;
+  for (const [label, msg] of pills) {
+    const btn = document.createElement("button");
+    btn.className = "pill";
+    btn.textContent = label;
+    btn.dir = "auto";
+    btn.addEventListener("click", () => {
+      document.getElementById("user-input").value = msg;
+      send();
+    });
+    container.appendChild(btn);
+  }
+}
+
+function applyLangUI() {
+  const s = UI_STRINGS[currentLang];
+  document.getElementById("lang-toggle").textContent = s.toggleLabel;
+  document.getElementById("samples-title").textContent = s.samplesTitle;
+  document.getElementById("samples-subtitle").textContent = s.samplesSubtitle;
+  document.getElementById("user-input").placeholder = s.placeholder;
+  renderPills();
+}
+
+document.getElementById("lang-toggle").addEventListener("click", () => {
+  currentLang = currentLang === "en" ? "ar" : "en";
+  localStorage.setItem("lang", currentLang);
+  applyLangUI();
+});
+// Restore saved preference
+const savedLang = localStorage.getItem("lang");
+if (savedLang === "ar" || savedLang === "en") currentLang = savedLang;
+applyLangUI();
 
 // ── Mobile badges toggle ────────────────────────────────────────────
 document.getElementById("badges-toggle").addEventListener("click", function() {
@@ -313,11 +394,21 @@ async function load(ort) {
   document.getElementById("status").textContent = "ready — running locally in your browser";
   document.getElementById("user-input").focus();
 
-  // Verify tokenizer
-  const testIds = tokenizer.encode("<|im_start|>user\nwhat is your favorite milkshake flavor<|im_end|>\n<|im_start|>assistant\n");
-  const expected = [1, 70, 45, 135, 144, 304, 527, 88, 186, 2, 45, 1, 71, 45];
-  const match = testIds.length === expected.length && testIds.every((v, i) => v === expected[i]);
-  console.log("Tokenizer check:", match ? "PASS" : "FAIL", testIds, "expected:", expected);
+  // Verify tokenizer — a round-trip check (encode then decode should
+  // reproduce the plain-text content) rather than exact hardcoded token
+  // ids, since those ids depend on the tokenizer's BPE merges and shift
+  // every time the training corpus changes (as it just did: bilingual
+  // English/Arabic, vocab_size 768 -> 1536). This decode() always strips
+  // special tokens (<|im_start|>, <|lang_ar|>, etc. never get pushed into
+  // `parts` above), so the round-trip is checked against content only.
+  const stripTags = (s) => s.replace(/<\|[^|]+\|>/g, "").replace(/\n/g, "");
+  const enTest = "<|im_start|>user\nwhat is your favorite milkshake flavor<|im_end|>";
+  const enOk = tokenizer.decode(tokenizer.encode(enTest)).replace(/\n/g, "") === stripTags(enTest);
+  console.log("Tokenizer round-trip (EN):", enOk ? "PASS" : "FAIL");
+
+  const arTest = "<|im_start|>user\nمرحبا<|im_end|>";
+  const arOk = tokenizer.decode(tokenizer.encode(arTest)).replace(/\n/g, "") === stripTags(arTest);
+  console.log("Tokenizer round-trip (AR):", arOk ? "PASS" : "FAIL");
 }
 
 // ── Sample prompt pills ─────────────────────────────────────────────
@@ -502,14 +593,18 @@ function cleanupSentence(text) {
   if (!text) return text;
 
   text = text.replace(/\s+/g, " ").trim();          // collapse whitespace
-  text = text.replace(/\s+([.,!?])/g, "$1");         // no space before punctuation
-  text = text.replace(/([.,!?])(?=[^\s.,!?]|$)/g, "$1 ").trim(); // space after punctuation
+  text = text.replace(/\s+([.,!?؟،])/g, "$1");       // no space before punctuation
+  text = text.replace(/([.,!?؟،])(?=[^\s.,!?؟،]|$)/g, "$1 ").trim(); // space after punctuation
 
-  // Capitalize the first letter of each sentence
+  // Capitalize the first letter of each sentence. \w only matches
+  // Latin letters/digits, so this is a no-op on Arabic text (which has
+  // no letter case) rather than something that needs separate handling.
   text = text.replace(/(^\s*\w|[.!?]\s+\w)/g, (m) => m.toUpperCase());
 
-  // Ensure it ends with terminal punctuation
-  if (text && !/[.!?]$/.test(text)) text += ".";
+  // Ensure it ends with terminal punctuation — includes the Arabic
+  // question mark (؟) so an Arabic reply doesn't get a redundant Latin
+  // "." appended after its own correct terminal punctuation.
+  if (text && !/[.!?؟]$/.test(text)) text += ".";
 
   return text;
 }
@@ -534,7 +629,8 @@ async function send() {
   addMessage("user", text);
   const typing = addTyping();
 
-  const prompt = `<|im_start|>user\n${text}<|im_end|>\n<|im_start|>assistant\n`;
+  const langTag = currentLang === "ar" ? "<|lang_ar|>" : "<|lang_en|>";
+  const prompt = `<|im_start|>user\n${text}<|im_end|>\n<|im_start|>assistant\n${langTag}`;
   const inputIds = tokenizer.encode(prompt);
 
   const outputIds = await generate(inputIds);
@@ -565,9 +661,10 @@ function addMessage(role, text) {
 
   const body = document.createElement("div");
   body.className = "body";
+  body.dir = "auto"; // renders Arabic right-to-left, English left-to-right, per message
   const label = document.createElement("div");
   label.className = "label";
-  label.textContent = role === "user" ? "you" : "chef";
+  label.textContent = role === "user" ? UI_STRINGS[currentLang].you : UI_STRINGS[currentLang].chef;
   body.appendChild(label);
   body.appendChild(document.createTextNode(text));
 
@@ -582,7 +679,8 @@ function addTyping() {
   const chat = document.getElementById("chat");
   const div = document.createElement("div");
   div.className = "typing";
-  div.textContent = "\u{1F95B} chef is thinking...";
+  div.dir = "auto";
+  div.textContent = UI_STRINGS[currentLang].thinking;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
   return div;
@@ -605,6 +703,18 @@ const TOPICS = [
   ["opinion", "do you think milkshakes are a good dessert"], ["opinion", "are milkshakes better than ice cream cones"],
   ["fun facts", "when were milkshakes invented"], ["fun facts", "why is it called a milkshake"],
 ];
+const AR_TOPICS = [
+  ["النكهة", "ما هو نكهتك المفضلة للميلك شيك"], ["النكهة", "هل الموز نكهة جيدة للميلك شيك"],
+  ["المكونات", "ما هي مكونات الميلك شيك"], ["المكونات", "هل يحتاج الميلك شيك إلى سكر إضافي"],
+  ["طريقة التحضير", "كيف تصنع ميلك شيك"], ["طريقة التحضير", "كيف أجعل الميلك شيك أكثر سماكة"],
+  ["الإضافات", "ما هي أفضل إضافات للميلك شيك"], ["الإضافات", "هل الكرز فوق الميلك شيك تقليدي"],
+  ["درجة الحرارة", "هل يجب أن يكون الميلك شيك بارداً جداً"], ["درجة الحرارة", "هل يمكن تجميد الميلك شيك"],
+  ["الطلب", "ما هو الحجم الذي يجب أن أطلبه"], ["الطلب", "هل يمكن مزج نكهتين عند الطلب"],
+  ["الصحة", "هل الميلك شيك صحي"], ["الصحة", "كم عدد السعرات الحرارية في الميلك شيك"],
+  ["المقارنة", "ما الفرق بين الميلك شيك والسموذي"], ["المقارنة", "هل المالت نفس الميلك شيك"],
+  ["الرأي", "هل تعتقد أن الميلك شيك حلوى جيدة"], ["الرأي", "هل الميلك شيك أفضل من الآيس كريم العادي"],
+  ["معلومات ممتعة", "متى تم اختراع الميلك شيك"], ["معلومات ممتعة", "لماذا يسمى ميلك شيك"],
+];
 
 document.getElementById("hint-btn").addEventListener("click", () => {
   const overlay = document.getElementById("topics-overlay");
@@ -613,13 +723,18 @@ document.getElementById("hint-btn").addEventListener("click", () => {
 
   const box = document.createElement("div");
   box.id = "topics-box";
-  box.innerHTML = "<h3>&#x1F95B; Chef knows 10 topics — click one to ask</h3>";
+  box.dir = "auto";
+  const h3 = document.createElement("h3");
+  h3.textContent = UI_STRINGS[currentLang].topicsTitle;
+  box.appendChild(h3);
 
   const grid = document.createElement("div");
   grid.className = "topics";
-  for (const [label, msg] of TOPICS) {
+  const topics = currentLang === "ar" ? AR_TOPICS : TOPICS;
+  for (const [label, msg] of topics) {
     const btn = document.createElement("button");
     btn.className = "topic";
+    btn.dir = "auto";
     btn.textContent = label;
     btn.addEventListener("click", () => {
       overlay.classList.add("hidden");
@@ -632,7 +747,7 @@ document.getElementById("hint-btn").addEventListener("click", () => {
 
   const close = document.createElement("button");
   close.className = "close-btn";
-  close.textContent = "close";
+  close.textContent = currentLang === "ar" ? "إغلاق" : "close";
   close.addEventListener("click", () => overlay.classList.add("hidden"));
   box.appendChild(close);
 
