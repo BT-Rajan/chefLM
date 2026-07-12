@@ -11,20 +11,28 @@ in the training data for known off-topic questions, but that only helps
 for inputs that resemble those ~90 examples — anything novel can still
 slip through as a wrong or made-up answer.
 
-This module adds two independent layers on top of generation:
+This module adds three independent layers on top of generation:
 
-1. topic gate (pre-generation): compare the incoming message against the
-   real (non-redirect) training questions. If it isn't close to anything
-   ChefLM actually learned to answer, skip generation entirely and
-   return a canned redirect — cheaper and more reliable than hoping the
-   model redirects itself.
+1. retrieval lookup (pre-generation): if the incoming message closely
+   matches a training question (by word overlap), return that question's
+   stored answer directly instead of generating — guaranteed correct and
+   on-topic, since it sidesteps sampling entirely for anything the model
+   was explicitly taught.
 
-2. output sanitizer (post-generation): catch degenerate generation —
-   empty replies, leaked special tokens (<|im_end|> etc. that weren't
-   fully stripped), or the model looping on one word — and swap in the
-   same fallback instead of returning it to the user.
+2. topic gate (pre-generation, for anything retrieval didn't catch):
+   compare the message against the real (non-redirect) training
+   questions' vocabulary. If it isn't close to anything ChefLM actually
+   learned to answer, skip generation entirely and return a canned
+   redirect — cheaper and more reliable than hoping the model redirects
+   itself.
 
-Both are plain stdlib (re) and reuse the existing training data, so
+3. output sanitizer (post-generation, for whatever's left): catch
+   degenerate generation — empty replies, leaked special tokens
+   (<|im_end|> etc. that weren't fully stripped), or the model looping on
+   one word — and swap in the same fallback instead of returning it to
+   the user.
+
+All three are plain stdlib (re) and reuse the existing training data, so
 there's nothing new to install or retrain.
 """
 
@@ -117,6 +125,56 @@ def is_on_topic(message, lang="en", threshold=1):
     real milkshake questions getting redirected); lower it (0) to
     disable the gate entirely."""
     return topic_score(message, lang=lang) >= threshold
+
+
+# Retrieval reference: every non-redirect training question, tokenized
+# once at import time, alongside its stored answer. "redirect" examples
+# are excluded here too — they're handled by is_on_topic, and their
+# "answers" are canned deflections, not real content to retrieve.
+_ANSWER_REFERENCE = [
+    (_tokens(s["input"]), s["output"], s.get("lang", "en"))
+    for s in SAMPLES
+    if s.get("category") != "redirect"
+]
+
+
+def best_match(message, lang="en", min_similarity=0.6):
+    """Find the closest training question to `message` by Jaccard
+    similarity over stopword-filtered words, and return its stored
+    answer if it's close enough to trust.
+
+    This is a literal-overlap lookup, not a paraphrase or semantic
+    matcher — it only fires when the wording is genuinely close to
+    something in milkshake_data.py. That's the point: for those inputs,
+    returning the human-written answer directly is strictly more
+    reliable than generating, since it sidesteps sampling entirely.
+    Anything phrased differently enough to miss the threshold falls
+    through to generation as before.
+
+    Returns (answer, similarity) on a hit, or (None, best_similarity_seen)
+    on a miss — the second value is useful for logging/tuning even when
+    there's no match to return.
+    """
+    msg_tokens = _tokens(message)
+    if not msg_tokens:
+        return None, 0.0
+    best_score = 0.0
+    best_answer = None
+    for ref_tokens, ref_output, ref_lang in _ANSWER_REFERENCE:
+        if ref_lang != lang or not ref_tokens:
+            continue
+        overlap = msg_tokens & ref_tokens
+        if not overlap:
+            continue
+        score = len(overlap) / len(msg_tokens | ref_tokens)
+        if score > best_score:
+            best_score = score
+            best_answer = ref_output
+            if best_score == 1.0:
+                break
+    if best_score >= min_similarity:
+        return best_answer, best_score
+    return None, best_score
 
 
 _MAX_REPEAT_RUN = 4  # same word 4+ times in a row -> looping

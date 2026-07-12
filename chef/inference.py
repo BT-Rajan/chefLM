@@ -12,7 +12,7 @@ from .config import ChefConfig
 from .model import ChefLM
 from .grammar import correct_grammar
 from .persona import Persona, NONE_PERSONA
-from .guardrails import is_on_topic, looks_degenerate, FALLBACK
+from .guardrails import is_on_topic, looks_degenerate, best_match, FALLBACK
 
 
 class ChefInference:
@@ -71,7 +71,8 @@ class ChefInference:
 
     def chat_completion(self, messages, temperature=0.7, max_tokens=64,
                         top_k=50, check_grammar=True, persona=None, lang="en",
-                        use_guardrails=True, topic_threshold=1, **kwargs):
+                        use_guardrails=True, topic_threshold=1,
+                        retrieval_threshold=0.6, **kwargs):
         """Chat completion — takes messages, returns response.
 
         lang: "en" or "ar". Forces the reply language by feeding the
@@ -84,25 +85,43 @@ class ChefInference:
         check_grammar: run the reply through LanguageTool before returning
         (see grammar.py). Set False to skip it (e.g. for fast eval loops).
         persona: optional persona.Persona instance, applied AFTER grammar
-        check (see persona.py). Rewrites already-generated text — never
-        sent to the model, never changes what it computes. Leave None (or
-        pass persona.NONE_PERSONA) for the unmodified base output. Persona
-        rewrites are English-specific word swaps; they harmlessly no-op on
-        Arabic output rather than corrupting it.
-        use_guardrails: (see guardrails.py) skip generation entirely for
-        messages that don't resemble anything in the training data, and
-        swap in a fallback if generation still comes out empty/looping/
-        malformed. Set False to get the raw, unguarded model behavior
-        (e.g. for eval scripts that want to measure it directly).
+        check (see persona.py) or after a retrieval hit. Rewrites already-
+        generated (or retrieved) text — never sent to the model, never
+        changes what it computes. Leave None (or pass persona.NONE_PERSONA)
+        for the unmodified output. Persona rewrites are English-specific
+        word swaps; they harmlessly no-op on Arabic output rather than
+        corrupting it.
+        use_guardrails: (see guardrails.py) try a direct retrieval match
+        first, skip generation entirely for messages that don't resemble
+        anything in the training data, and swap in a fallback if
+        generation still comes out empty/looping/malformed. Set False to
+        get the raw, unguarded model behavior (e.g. for eval scripts that
+        want to measure it directly).
         topic_threshold: passed to guardrails.is_on_topic — minimum number
         of domain-vocabulary words (see guardrails.py) the message needs
         to contain before it's treated as on-topic. Default 1.
+        retrieval_threshold: passed to guardrails.best_match — minimum
+        word-overlap similarity (0-1) to a training question before its
+        stored answer is returned directly instead of generating. Default
+        0.6. Lower it to retrieve more aggressively (faster, more literal,
+        more brittle to paraphrasing); raise it to lean on generation more.
         """
         if use_guardrails:
             last_user = next(
                 (m.get("content", "") for m in reversed(messages) if m.get("role") == "user"),
                 "",
             )
+
+            retrieved, _score = best_match(last_user, lang=lang, min_similarity=retrieval_threshold)
+            if retrieved is not None:
+                resp_text = retrieved
+                if persona is not None and persona is not NONE_PERSONA:
+                    resp_text = persona.apply(resp_text)
+                return {
+                    "choices": [{"message": {"role": "assistant", "content": resp_text}}],
+                    "guardrail": "retrieved",
+                }
+
             if not is_on_topic(last_user, lang=lang, threshold=topic_threshold):
                 return {
                     "choices": [{"message": {"role": "assistant", "content": FALLBACK.get(lang, FALLBACK["en"])}}],
