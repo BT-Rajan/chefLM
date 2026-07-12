@@ -1,8 +1,8 @@
 """
 MilkshakeLM dataset.
 
-A hand-written experiment dataset (1199 samples, 110 -> 350 -> 1000 -> 1050
--> 1059 -> 1205 -> 1195 -> 1199) of questions and answers about milkshakes, across 14
+A hand-written experiment dataset (1215 samples, 110 -> 350 -> 1000 -> 1050
+-> 1059 -> 1205 -> 1195 -> 1199 -> 1215) of questions and answers about milkshakes, across 14
 categories: flavor, ingredients, howto, recipe, topping, temperature,
 ordering, health, nutrition, comparison, opinion, funfact, redirect, banter.
 The 1205 -> 1195 drop was a data-quality pass, not new content: removed 10
@@ -48,6 +48,9 @@ random.seed(42)
 
 SAMPLES = [
     {"input": "what is your favorite milkshake flavor", "output": "chocolate. it always wins.", "category": "flavor"},
+    {"input": "list flavors", "output": "chocolate. it always wins.", "category": "flavor"},
+    {"input": "what flavors do you have", "output": "chocolate. it always wins.", "category": "flavor"},
+    {"input": "flavors", "output": "chocolate. it always wins.", "category": "flavor"},
     {"input": "do you like vanilla milkshakes", "output": "yes, vanilla is simple and always good.", "category": "flavor"},
     {"input": "what about strawberry milkshakes", "output": "strawberry is sweet and a little tangy.", "category": "flavor"},
     {"input": "is banana a good milkshake flavor", "output": "yes, banana makes it creamy and smooth.", "category": "flavor"},
@@ -110,6 +113,8 @@ SAMPLES = [
     {"input": "is a pinch of salt ever added", "output": "yes, it can bring out the sweetness more.", "category": "ingredients"},
     {"input": "do you need a specific brand of ice cream", "output": "no, any good quality ice cream works fine.", "category": "ingredients"},
     {"input": "how do you make a milkshake", "output": "blend milk and ice cream together until smooth.", "category": "howto"},
+    {"input": "how to make a milkshake", "output": "blend milk and ice cream together until smooth.", "category": "howto"},
+    {"input": "steps to make a milkshake", "output": "blend milk and ice cream together until smooth.", "category": "howto"},
     {"input": "how long does it take to make a milkshake", "output": "just a few minutes with a blender.", "category": "howto"},
     {"input": "how much milk should i use", "output": "start with a small splash and add more if it's too thick.", "category": "howto"},
     {"input": "how do i make it thicker", "output": "use less milk and more ice cream.", "category": "howto"},
@@ -139,6 +144,9 @@ SAMPLES = [
     {"input": "how do you fix a runny milkshake", "output": "blend in a bit more ice cream to thicken it.", "category": "howto"},
     {"input": "how do you get an extra thick milkshake", "output": "use very little milk and a lot of ice cream.", "category": "howto"},
     {"input": "what toppings go well on a milkshake", "output": "whipped cream, a cherry, or chocolate syrup.", "category": "topping"},
+    {"input": "list toppings", "output": "whipped cream, a cherry, or chocolate syrup.", "category": "topping"},
+    {"input": "what toppings do you have", "output": "whipped cream, a cherry, or chocolate syrup.", "category": "topping"},
+    {"input": "toppings", "output": "whipped cream, a cherry, or chocolate syrup.", "category": "topping"},
     {"input": "do you like sprinkles on your milkshake", "output": "yes, they add a fun crunch.", "category": "topping"},
     {"input": "is a cherry on top traditional", "output": "yes, it's a classic finishing touch.", "category": "topping"},
     {"input": "can you add crushed cookies as a topping", "output": "yes, crushed cookies on top add texture.", "category": "topping"},
@@ -226,6 +234,8 @@ SAMPLES = [
     {"input": "can staff recommend a flavor if you're unsure", "output": "yes, most are happy to suggest a favorite.", "category": "ordering"},
     {"input": "can you order milkshakes for a big group", "output": "yes, just give the shop a bit of notice.", "category": "ordering"},
     {"input": "is a milkshake healthy", "output": "not really, it's a sweet treat, best in moderation.", "category": "health"},
+    {"input": "healthy", "output": "not really, it's a sweet treat, best in moderation.", "category": "health"},
+    {"input": "is it healthy", "output": "not really, it's a sweet treat, best in moderation.", "category": "health"},
     {"input": "how many calories are in a milkshake", "output": "it varies, but often a few hundred calories or more.", "category": "health"},
     {"input": "can you make a lower calorie milkshake", "output": "yes, use low-fat milk and less ice cream.", "category": "health"},
     {"input": "is a milkshake good for a protein boost", "output": "you can add protein powder to make it more filling.", "category": "health"},
@@ -255,6 +265,8 @@ SAMPLES = [
     {"input": "are milkshakes usually gluten free", "output": "often yes, but check any mix-ins or toppings first.", "category": "health"},
     {"input": "is it bad to drink milkshakes every day", "output": "yes, it's better saved for occasional treats.", "category": "health"},
     {"input": "what's the difference between a milkshake and a smoothie", "output": "a milkshake uses ice cream, a smoothie usually doesn't.", "category": "comparison"},
+    {"input": "milkshake vs smoothie", "output": "a milkshake uses ice cream, a smoothie usually doesn't.", "category": "comparison"},
+    {"input": "difference between milkshake and smoothie", "output": "a milkshake uses ice cream, a smoothie usually doesn't.", "category": "comparison"},
     {"input": "would you call a frappe the same as a milkshake", "output": "not quite, a frappe usually has coffee blended with ice.", "category": "comparison"},
     {"input": "how does a malt differ from a milkshake", "output": "almost, a malt just adds malted milk powder.", "category": "comparison"},
     {"input": "which is thicker, a milkshake or a smoothie", "output": "a milkshake is usually thicker because of the ice cream.", "category": "comparison"},
@@ -448,6 +460,8 @@ SAMPLES = [
     {"input": "what happens if you add espresso shots", "output": "yes, espresso shots gives it a strong coffee kick.", "category": "ingredients"},
     {"input": "what does espresso shots do in a milkshake", "output": "it gives it a strong coffee kick, so it's worth trying.", "category": "ingredients"},
     {"input": "how many calories are in a regular milkshake", "output": "around 500-700 calories depending on size and toppings.", "category": "nutrition"},
+    {"input": "calories", "output": "around 500-700 calories depending on size and toppings.", "category": "nutrition"},
+    {"input": "how many calories", "output": "around 500-700 calories depending on size and toppings.", "category": "nutrition"},
     {"input": "how much sugar is in a regular milkshake", "output": "around 60-85 grams of sugar depending on size and toppings.", "category": "nutrition"},
     {"input": "is a regular milkshake high in calories", "output": "moderate to high, usually around 500-700 calories depending on size and toppings.", "category": "nutrition"},
     {"input": "how many calories are in a small milkshake", "output": "roughly 300-400 calories.", "category": "nutrition"},
@@ -656,6 +670,8 @@ SAMPLES = [
     {"input": "how do you make a milkshake without any special tools", "output": "a blender and a glass are really all you need.", "category": "howto"},
     {"input": "how do i make a chocolate milkshake from scratch", "output": "combine 2 scoops of chocolate ice cream and a cup of milk in a blender, blend on high until creamy, then pour into a glass and add chocolate syrup.", "category": "recipe"},
     {"input": "give me a recipe for a vanilla milkshake", "output": "combine 3 scoops of vanilla ice cream and half a cup of milk in a blender, blend on high until creamy, then pour into a glass and add a scattering of toffee bits.", "category": "recipe"},
+    {"input": "recipe", "output": "combine 3 scoops of vanilla ice cream and half a cup of milk in a blender, blend on high until creamy, then pour into a glass and add a scattering of toffee bits.", "category": "recipe"},
+    {"input": "give me a recipe", "output": "combine 3 scoops of vanilla ice cream and half a cup of milk in a blender, blend on high until creamy, then pour into a glass and add a scattering of toffee bits.", "category": "recipe"},
     {"input": "walk me through making a strawberry milkshake", "output": "add 2 scoops of strawberry ice cream and a cup of milk to a blender, blend until smooth, then pour and top with a dusting of rainbow sprinkles.", "category": "recipe"},
     {"input": "how do i make a banana milkshake from scratch", "output": "add 2 scoops of banana ice cream and a cup of milk to a blender, blend until smooth, then pour and top with peanut butter drizzle.", "category": "recipe"},
     {"input": "give me a recipe for a peanut butter milkshake", "output": "start with a cup of peanut butter ice cream, add 3/4 cup of milk, blend until smooth, and finish with hot fudge on top.", "category": "recipe"},
@@ -1289,7 +1305,7 @@ SAMPLES = [
     {"input": "هل تعرف كيف أصلح جهاز الكمبيوتر", "output": "ليس تخصصي، لكن أعرف الكثير عن الميلك شيك.", "category": "redirect", "lang": "ar"},
 ]
 
-assert len(SAMPLES) == 1199, f"expected 1199 samples, got {len(SAMPLES)}"
+assert len(SAMPLES) == 1215, f"expected 1215 samples, got {len(SAMPLES)}"
 # Was 1205 — dropped by 10 during a data-quality pass that removed exact
 # duplicates in nutrition ("what's the calorie count for a X milkshake"
 # had identical question-intent AND identical answer text to "how many
