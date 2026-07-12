@@ -77,8 +77,13 @@ def chat():
     # but the endpoint is open to any caller, and very high temperature /
     # top_k is exactly what pushes this small a model into random-looking
     # output (see chef/guardrails.py for the other half of this).
-    temperature = max(0.1, min(temperature, 1.5))
-    top_k = max(1, min(top_k, 200))
+    # Previously (0.1, 1.5) / (1, 200) — at ~7-9M params there's not enough
+    # redundancy in the training signal for the model to stay coherent that
+    # far out on either knob, so the old ceiling let callers dial straight
+    # into erratic/garbled territory. Tightened to the range that's actually
+    # safe for this model size.
+    temperature = max(0.1, min(temperature, 0.6))
+    top_k = max(1, min(top_k, 20))
 
     result = engine.chat_completion(
         [{"role": "user", "content": message}],

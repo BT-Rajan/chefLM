@@ -103,8 +103,13 @@ class ChefInference:
         retrieval_threshold: passed to guardrails.best_match — minimum
         word-overlap similarity (0-1) to a training question before its
         stored answer is returned directly instead of generating. Default
-        0.6. Lower it to retrieve more aggressively (faster, more literal,
-        more brittle to paraphrasing); raise it to lean on generation more.
+        0.6. Checked whether lowering this helped: it doesn't without also
+        fixing _STOPWORDS — at 0.5, "what is the weather today" scores
+        exactly 0.5 against a banter example via the shared word "today"
+        (not currently a stopword) and gets falsely retrieved as an
+        on-topic answer. Lower it to retrieve more aggressively (faster,
+        more literal, more brittle to paraphrasing); raise it to lean on
+        generation more.
         """
         if use_guardrails:
             last_user = next(
