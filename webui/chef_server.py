@@ -48,8 +48,21 @@ def chat():
     if not message:
         return jsonify({"error": "empty message"}), 400
 
-    temperature = float(data.get("temperature", DEFAULT_TEMPERATURE))
-    top_k = int(data.get("top_k", DEFAULT_TOP_K))
+    try:
+        temperature = float(data.get("temperature", DEFAULT_TEMPERATURE))
+    except (TypeError, ValueError):
+        temperature = DEFAULT_TEMPERATURE
+    try:
+        top_k = int(data.get("top_k", DEFAULT_TOP_K))
+    except (TypeError, ValueError):
+        top_k = DEFAULT_TOP_K
+
+    # Clamp to sane ranges — the page's own controls stay within these,
+    # but the endpoint is open to any caller, and very high temperature /
+    # top_k is exactly what pushes this small a model into random-looking
+    # output (see chef/guardrails.py for the other half of this).
+    temperature = max(0.1, min(temperature, 1.5))
+    top_k = max(1, min(top_k, 200))
 
     result = engine.chat_completion(
         [{"role": "user", "content": message}],

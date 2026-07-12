@@ -12,6 +12,7 @@ from .config import ChefConfig
 from .model import ChefLM
 from .grammar import correct_grammar
 from .persona import Persona, NONE_PERSONA
+from .guardrails import is_on_topic, looks_degenerate, FALLBACK
 
 
 class ChefInference:
@@ -69,7 +70,8 @@ class ChefInference:
         print(f"ChefLM loaded: {total/1e6:.1f}M params")
 
     def chat_completion(self, messages, temperature=0.7, max_tokens=64,
-                        top_k=50, check_grammar=True, persona=None, lang="en", **kwargs):
+                        top_k=50, check_grammar=True, persona=None, lang="en",
+                        use_guardrails=True, topic_threshold=1, **kwargs):
         """Chat completion — takes messages, returns response.
 
         lang: "en" or "ar". Forces the reply language by feeding the
@@ -87,7 +89,26 @@ class ChefInference:
         pass persona.NONE_PERSONA) for the unmodified base output. Persona
         rewrites are English-specific word swaps; they harmlessly no-op on
         Arabic output rather than corrupting it.
+        use_guardrails: (see guardrails.py) skip generation entirely for
+        messages that don't resemble anything in the training data, and
+        swap in a fallback if generation still comes out empty/looping/
+        malformed. Set False to get the raw, unguarded model behavior
+        (e.g. for eval scripts that want to measure it directly).
+        topic_threshold: passed to guardrails.is_on_topic — minimum number
+        of domain-vocabulary words (see guardrails.py) the message needs
+        to contain before it's treated as on-topic. Default 1.
         """
+        if use_guardrails:
+            last_user = next(
+                (m.get("content", "") for m in reversed(messages) if m.get("role") == "user"),
+                "",
+            )
+            if not is_on_topic(last_user, lang=lang, threshold=topic_threshold):
+                return {
+                    "choices": [{"message": {"role": "assistant", "content": FALLBACK.get(lang, FALLBACK["en"])}}],
+                    "guardrail": "off_topic",
+                }
+
         prompt = self._format_prompt(messages, lang=lang)
         input_ids = self.tokenizer.encode(prompt).ids
         prompt_tokens = len(input_ids)
@@ -102,6 +123,14 @@ class ChefInference:
         if "<|im_start|>" in output_text:
             output_text = output_text.split("<|im_start|>")[0]
         resp_text = output_text.strip()
+
+        if use_guardrails and looks_degenerate(resp_text):
+            # Empty / looping / leaked-special-token output — don't bother
+            # grammar-checking or persona-styling garbage, just fall back.
+            return {
+                "choices": [{"message": {"role": "assistant", "content": FALLBACK.get(lang, FALLBACK["en"])}}],
+                "guardrail": "degenerate_output",
+            }
 
         if check_grammar:
             resp_text = correct_grammar(resp_text, lang=lang)
@@ -138,6 +167,9 @@ def main():
                          "language regardless of what script the prompt itself is in.")
     p.add_argument("--no-grammar-check", action="store_true",
                     help="Skip LanguageTool grammar correction (faster, no Java/network needed)")
+    p.add_argument("--no-guardrails", action="store_true",
+                    help="Disable the topic gate and output sanity check (see guardrails.py) "
+                         "and get the model's raw, unguarded output.")
     p.add_argument("--persona", default="none", choices=["none", "indian"],
                     help="Output-side persona layer (see persona.py). Default: none.")
     p.add_argument("--persona-intensity", type=float, default=0.4,
@@ -158,7 +190,8 @@ def main():
     if args.prompt:
         result = engine.chat_completion([{"role": "user", "content": args.prompt}],
                                          check_grammar=check_grammar, persona=persona, lang=args.lang,
-                                         temperature=args.temperature, top_k=args.top_k)
+                                         temperature=args.temperature, top_k=args.top_k,
+                                         use_guardrails=not args.no_guardrails)
         print(result["choices"][0]["message"]["content"])
         return
 
@@ -169,7 +202,8 @@ def main():
             break
         result = engine.chat_completion([{"role": "user", "content": inp}],
                                          check_grammar=check_grammar, persona=persona, lang=args.lang,
-                                         temperature=args.temperature, top_k=args.top_k)
+                                         temperature=args.temperature, top_k=args.top_k,
+                                         use_guardrails=not args.no_guardrails)
         msg = result["choices"][0]["message"]
         if msg.get("content"):
             print(f"Chef> {msg['content']}")
