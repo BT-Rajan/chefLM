@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChefLM Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #FFF6E9;
+    --cream-deep: #FBEAD2;
+    --strawberry: #E8566B;
+    --strawberry-deep: #C93F53;
+    --mint: #7FB88F;
+    --choc: #3D2B23;
+    --choc-soft: #6B564C;
+    --line: rgba(61,43,35,0.12);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--cream);
+    background-image:
+      radial-gradient(circle at 8% 12%, rgba(232,86,107,0.08) 0, transparent 45%),
+      radial-gradient(circle at 92% 88%, rgba(127,184,143,0.10) 0, transparent 45%);
+    font-family: 'Karla', sans-serif;
+    color: var(--choc);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 40px 16px 60px;
+  }
+  .wrap { width: 100%; max-width: 560px; }
+
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; }
+  .brand .scoop {
+    width: 34px; height: 34px;
+    border-radius: 50% 50% 46% 46%;
+    background: linear-gradient(145deg, var(--strawberry), var(--strawberry-deep));
+    box-shadow: inset 0 -4px 0 rgba(0,0,0,0.08);
+    position: relative;
+  }
+  .brand .scoop::after {
+    content: ""; position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
+    width: 8px; height: 10px; background: var(--mint); border-radius: 3px 3px 0 0;
+  }
+  .brand h1 { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 24px; margin: 0; }
+  .brand span { display: block; font-size: 11.5px; color: var(--choc-soft); }
+
+  .card {
+    background: white; border: 1.5px solid var(--line); border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(61,43,35,0.07);
+    padding: 26px;
+  }
+
+  h2 { font-family: 'Baloo 2', sans-serif; font-size: 18px; margin: 0 0 6px; }
+  p.sub { color: var(--choc-soft); font-size: 13.5px; margin: 0 0 20px; line-height: 1.5; }
+
+  .lang-row { display: flex; gap: 10px; margin-bottom: 22px; }
+  .lang-card {
+    flex: 1; border: 1.5px solid var(--line); border-radius: 14px;
+    padding: 14px; text-align: center; cursor: pointer;
+    font-family: 'Karla', sans-serif; font-weight: 700; font-size: 14px;
+    background: var(--cream-deep); color: var(--choc-soft);
+    transition: all 0.15s ease;
+  }
+  .lang-card.active { background: var(--strawberry); color: white; border-color: var(--strawberry); }
+  .lang-card .flag { font-size: 20px; display: block; margin-bottom: 4px; }
+
+  button.primary {
+    width: 100%; border: none; background: var(--strawberry); color: white;
+    font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 15px;
+    padding: 14px; border-radius: 999px; cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  button.primary:hover { background: var(--strawberry-deep); }
+  button.primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .steps { list-style: none; margin: 4px 0 0; padding: 0; }
+  .steps li {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0; font-size: 14px; border-bottom: 1px solid var(--line);
+  }
+  .steps li:last-child { border-bottom: none; }
+  .dot {
+    width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; flex-shrink: 0;
+    background: var(--cream-deep); color: var(--choc-soft);
+    border: 1.5px solid var(--line);
+  }
+  .dot.running { background: var(--strawberry); color: white; border-color: var(--strawberry); animation: pulse 1s infinite ease-in-out; }
+  .dot.done { background: var(--mint); color: white; border-color: var(--mint); }
+  .dot.error { background: #c0392b; color: white; border-color: #c0392b; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+  .log-toggle {
+    margin-top: 18px; font-size: 12.5px; color: var(--choc-soft);
+    cursor: pointer; text-decoration: underline; user-select: none;
+  }
+  .log {
+    display: none; margin-top: 10px; background: var(--choc); color: #eee2d2;
+    border-radius: 10px; padding: 12px; font-family: 'Courier New', monospace;
+    font-size: 11.5px; line-height: 1.5; max-height: 220px; overflow-y: auto;
+    white-space: pre-wrap;
+  }
+  .log.open { display: block; }
+
+  .error-box {
+    display: none; margin-top: 16px; background: #fdecea; border: 1.5px solid #f2b6ae;
+    color: #b3372c; border-radius: 10px; padding: 12px 14px; font-size: 13px;
+  }
+  .error-box.show { display: block; }
+
+  .footnote { text-align: center; font-size: 12px; color: var(--choc-soft); margin-top: 16px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <div class="scoop"></div>
+      <div>
+        <h1>ChefLM Setup</h1>
+        <span>local install &amp; launch</span>
+      </div>
+    </div>
+
+    <div class="card" id="setup-card">
+      <h2>Pick a reply language</h2>
+      <p class="sub">This sets Chef's default reply language. You can still switch it anytime in the chat page itself.</p>
+      <div class="lang-row">
+        <div class="lang-card active" id="lang-en" onclick="pickLang('en')">
+          <span class="flag">🇬🇧</span> English
+        </div>
+        <div class="lang-card" id="lang-ar" onclick="pickLang('ar')">
+          <span class="flag">🇸🇦</span> العربية
+        </div>
+      </div>
+      <button class="primary" id="start-btn" onclick="startInstall()">Install &amp; Launch Chef</button>
+    </div>
+
+    <div class="card" id="progress-card" style="display:none; margin-top:16px;">
+      <h2>Setting things up…</h2>
+      <p class="sub" id="progress-sub">This can take a few minutes the first time (installing packages, training the model).</p>
+      <ul class="steps" id="steps"></ul>
+      <div class="log-toggle" onclick="toggleLog()">show/hide details</div>
+      <div class="log" id="log"></div>
+      <div class="error-box" id="error-box"></div>
+    </div>
+
+    <div class="footnote">Running entirely on your machine · nothing leaves localhost</div>
+  </div>
+
+<script>
+  const STEP_LABELS = {
+    venv: "Setting up Python environment",
+    deps: "Installing dependencies",
+    grammar: "Installing grammar-check support",
+    data: "Preparing dataset and tokenizer",
+    train: "Training the model",
+    launch: "Starting chat server",
+  };
+  const STEP_ORDER = ["venv", "deps", "grammar", "data", "train", "launch"];
+
+  let lang = "en";
+  let polling = null;
+
+  function pickLang(l) {
+    lang = l;
+    document.getElementById('lang-en').classList.toggle('active', l === 'en');
+    document.getElementById('lang-ar').classList.toggle('active', l === 'ar');
+  }
+
+  function renderSteps(stepStatus, currentStep) {
+    const ul = document.getElementById('steps');
+    ul.innerHTML = '';
+    for (const key of STEP_ORDER) {
+      const status = stepStatus[key] || 'pending';
+      const li = document.createElement('li');
+      const dot = document.createElement('span');
+      dot.className = 'dot ' + status;
+      dot.textContent = status === 'done' ? '✓' : status === 'error' ? '!' : '';
+      const label = document.createElement('span');
+      label.textContent = STEP_LABELS[key];
+      li.appendChild(dot);
+      li.appendChild(label);
+      ul.appendChild(li);
+    }
+  }
+
+  function toggleLog() {
+    document.getElementById('log').classList.toggle('open');
+  }
+
+  async function startInstall() {
+    document.getElementById('start-btn').disabled = true;
+    document.getElementById('setup-card').style.display = 'none';
+    document.getElementById('progress-card').style.display = 'block';
+
+    await fetch('/api/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lang })
+    });
+
+    polling = setInterval(poll, 900);
+    poll();
+  }
+
+  async function poll() {
+    try {
+      const res = await fetch('/api/status');
+      const s = await res.json();
+      renderSteps(s.step_status, s.current_step);
+
+      const logEl = document.getElementById('log');
+      logEl.textContent = s.log.join('\n');
+      logEl.scrollTop = logEl.scrollHeight;
+
+      if (s.error) {
+        document.getElementById('error-box').textContent =
+          "Something went wrong: " + s.error + " — see details below for the full log.";
+        document.getElementById('error-box').classList.add('show');
+        document.getElementById('log').classList.add('open');
+        clearInterval(polling);
+        return;
+      }
+
+      if (s.ready) {
+        document.getElementById('progress-sub').textContent = "All set! Opening Chef...";
+        clearInterval(polling);
+        setTimeout(() => { window.location.href = s.chat_url; }, 900);
+      }
+    } catch (e) {
+      // installer server briefly unreachable during a restart; keep trying
+    }
+  }
+</script>
+</body>
+</html>

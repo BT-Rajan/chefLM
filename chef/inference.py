@@ -142,6 +142,13 @@ def main():
                     help="Output-side persona layer (see persona.py). Default: none.")
     p.add_argument("--persona-intensity", type=float, default=0.4,
                     help="0.0-1.0, how often the persona layer tags/rewrites a sentence (default 0.4)")
+    p.add_argument("--temperature", type=float, default=0.7,
+                    help="Sampling temperature (default 0.7). Lower (e.g. 0.2-0.4) makes replies "
+                         "more deterministic and more likely to match the closest trained example "
+                         "instead of drifting to a topically-similar-but-wrong answer.")
+    p.add_argument("--top-k", type=int, default=50,
+                    help="Top-k sampling cutoff (default 50). Lower values (e.g. 5-10) also push "
+                         "toward more deterministic, closer-to-training-data replies.")
     args = p.parse_args()
 
     engine = ChefInference(args.checkpoint, args.tokenizer, args.device)
@@ -150,7 +157,8 @@ def main():
 
     if args.prompt:
         result = engine.chat_completion([{"role": "user", "content": args.prompt}],
-                                         check_grammar=check_grammar, persona=persona, lang=args.lang)
+                                         check_grammar=check_grammar, persona=persona, lang=args.lang,
+                                         temperature=args.temperature, top_k=args.top_k)
         print(result["choices"][0]["message"]["content"])
         return
 
@@ -160,7 +168,8 @@ def main():
         if inp.lower() in ("quit", "exit", "q"):
             break
         result = engine.chat_completion([{"role": "user", "content": inp}],
-                                         check_grammar=check_grammar, persona=persona, lang=args.lang)
+                                         check_grammar=check_grammar, persona=persona, lang=args.lang,
+                                         temperature=args.temperature, top_k=args.top_k)
         msg = result["choices"][0]["message"]
         if msg.get("content"):
             print(f"Chef> {msg['content']}")
