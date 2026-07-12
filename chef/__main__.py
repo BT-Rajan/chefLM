@@ -3,6 +3,18 @@
 import os
 import sys
 
+# Windows consoles default to a legacy codepage (e.g. cp1252) that can't
+# encode Arabic text or many special characters, which crashes any print()
+# containing them (see prepare_data.py's tokenizer self-test, which prints
+# decoded Arabic output). Reconfigure to UTF-8 unconditionally so this
+# works the same on Windows, macOS, and Linux regardless of the terminal's
+# default encoding. reconfigure() is Python 3.7+; errors="replace" means
+# any truly unencodable character becomes "?" instead of crashing.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 CHECKPOINT_PATH = "checkpoints/best_model.pt"
 TOKENIZER_PATH = "data/tokenizer.json"
 HF_REPO = "BT-Rajan/chef-9m"  # placeholder 2014 not published yet

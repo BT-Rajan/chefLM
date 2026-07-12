@@ -78,9 +78,10 @@ def set_step(key, status):
 def run_cmd(cmd, cwd=REPO_ROOT):
     """Run a command, streaming its output into the shared log. Returns True on success."""
     log(f"$ {' '.join(cmd)}")
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
     proc = subprocess.Popen(
         cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, bufsize=1,
+        text=True, bufsize=1, encoding="utf-8", errors="replace", env=env,
     )
     for line in proc.stdout:
         log(line.rstrip())

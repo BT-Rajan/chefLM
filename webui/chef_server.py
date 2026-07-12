@@ -13,6 +13,15 @@ exactly as before.
 
 import argparse
 import os
+import sys
+
+# Same fix as chef/__main__.py: Windows consoles default to a legacy
+# codepage that can't encode Arabic text, which would crash any print()
+# of Arabic replies or errors. See chef/__main__.py for the full comment.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from flask import Flask, jsonify, request, send_from_directory
 
