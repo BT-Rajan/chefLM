@@ -47,6 +47,13 @@ STEPS = [
     ("launch", "Starting chat server"),
 ]
 
+# Rough overall estimate for a typical machine/connection: venv (~10s) +
+# dependency install incl. torch (~90s) + grammar package (~15s) + data
+# prep (~15s) + training on CPU (~180s, see README) + server launch (~10s).
+# Deliberately a bit generous rather than optimistic, so "taking longer
+# than usual" triggers only when something is actually unusually slow.
+ESTIMATED_SECONDS = 360
+
 # ---------------------------------------------------------------------------
 # Shared state, guarded by a lock. Polled by the browser via /api/status.
 # ---------------------------------------------------------------------------
@@ -59,6 +66,8 @@ STATE = {
     "error": None,
     "ready": False,            # chat server is up
     "chat_url": f"http://127.0.0.1:{CHAT_PORT}",
+    "start_time": None,        # epoch seconds, set when setup begins
+    "estimated_seconds": ESTIMATED_SECONDS,
 }
 
 
@@ -228,6 +237,8 @@ class Handler(BaseHTTPRequestHandler):
                     STATE["started"] = True
 
             if not already_started:
+                with state_lock:
+                    STATE["start_time"] = time.time()
                 threading.Thread(target=run_setup, args=(lang,), daemon=True).start()
 
             self._json({"ok": True})

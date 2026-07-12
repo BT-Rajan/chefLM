@@ -105,6 +105,22 @@
   }
   .log.open { display: block; }
 
+  .timer-row {
+    display: flex; align-items: baseline; gap: 10px;
+    margin: 4px 0 16px;
+  }
+  #stopwatch {
+    font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 22px;
+    color: var(--choc); letter-spacing: 0.5px;
+  }
+  .estimate { font-size: 12.5px; color: var(--choc-soft); }
+
+  .patience-box {
+    display: none; margin-top: 14px; background: #fff6df; border: 1.5px solid #ecd8a0;
+    color: #8a6d1f; border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.5;
+  }
+  .patience-box.show { display: block; }
+
   .error-box {
     display: none; margin-top: 16px; background: #fdecea; border: 1.5px solid #f2b6ae;
     color: #b3372c; border-radius: 10px; padding: 12px 14px; font-size: 13px;
@@ -141,9 +157,14 @@
     <div class="card" id="progress-card" style="display:none; margin-top:16px;">
       <h2>Setting things up…</h2>
       <p class="sub" id="progress-sub">This can take a few minutes the first time (installing packages, training the model).</p>
+      <div class="timer-row" id="timer-row">
+        <span id="stopwatch">00:00</span>
+        <span class="estimate" id="estimate-text"></span>
+      </div>
       <ul class="steps" id="steps"></ul>
       <div class="log-toggle" onclick="toggleLog()">show/hide details</div>
       <div class="log" id="log"></div>
+      <div class="patience-box" id="patience-box"></div>
       <div class="error-box" id="error-box"></div>
     </div>
 
@@ -163,11 +184,35 @@
 
   let lang = "en";
   let polling = null;
+  let stopwatchTimer = null;
+  let startTimeMs = null;
+  let estimatedSeconds = null;
+  let overrunShown = false;
 
   function pickLang(l) {
     lang = l;
     document.getElementById('lang-en').classList.toggle('active', l === 'en');
     document.getElementById('lang-ar').classList.toggle('active', l === 'ar');
+  }
+
+  function formatElapsed(totalSeconds) {
+    const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+    const s = Math.floor(totalSeconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  function tickStopwatch() {
+    if (startTimeMs === null) return;
+    const elapsed = (Date.now() - startTimeMs) / 1000;
+    document.getElementById('stopwatch').textContent = formatElapsed(elapsed);
+
+    if (estimatedSeconds && elapsed > estimatedSeconds && !overrunShown) {
+      overrunShown = true;
+      const box = document.getElementById('patience-box');
+      box.textContent = "This is taking a bit longer than usual — totally fine, it just " +
+        "depends on your machine and connection speed. Feel free to relax, it's still working.";
+      box.classList.add('show');
+    }
   }
 
   function renderSteps(stepStatus, currentStep) {
@@ -202,6 +247,7 @@
       body: JSON.stringify({ lang })
     });
 
+    stopwatchTimer = setInterval(tickStopwatch, 1000);
     polling = setInterval(poll, 900);
     poll();
   }
@@ -211,6 +257,14 @@
       const res = await fetch('/api/status');
       const s = await res.json();
       renderSteps(s.step_status, s.current_step);
+
+      if (startTimeMs === null && s.start_time) {
+        startTimeMs = s.start_time * 1000;
+        estimatedSeconds = s.estimated_seconds;
+        const mins = Math.round(estimatedSeconds / 60);
+        document.getElementById('estimate-text').textContent =
+          `estimated ~${mins} min${mins === 1 ? '' : 's'}`;
+      }
 
       const logEl = document.getElementById('log');
       logEl.textContent = s.log.join('\n');
@@ -222,12 +276,14 @@
         document.getElementById('error-box').classList.add('show');
         document.getElementById('log').classList.add('open');
         clearInterval(polling);
+        clearInterval(stopwatchTimer);
         return;
       }
 
       if (s.ready) {
         document.getElementById('progress-sub').textContent = "All set! Opening Chef...";
         clearInterval(polling);
+        clearInterval(stopwatchTimer);
         setTimeout(() => { window.location.href = s.chat_url; }, 900);
       }
     } catch (e) {
