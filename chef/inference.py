@@ -69,8 +69,8 @@ class ChefInference:
         total, _ = self.model.param_count()
         print(f"ChefLM loaded: {total/1e6:.1f}M params")
 
-    def chat_completion(self, messages, temperature=0.7, max_tokens=64,
-                        top_k=50, check_grammar=True, persona=None, lang="en",
+    def chat_completion(self, messages, temperature=0.4, max_tokens=64,
+                        top_k=10, check_grammar=True, persona=None, lang="en",
                         use_guardrails=True, topic_threshold=1,
                         retrieval_threshold=0.6, **kwargs):
         """Chat completion — takes messages, returns response.
@@ -193,12 +193,12 @@ def main():
                     help="Output-side persona layer (see persona.py). Default: none.")
     p.add_argument("--persona-intensity", type=float, default=0.4,
                     help="0.0-1.0, how often the persona layer tags/rewrites a sentence (default 0.4)")
-    p.add_argument("--temperature", type=float, default=0.7,
-                    help="Sampling temperature (default 0.7). Lower (e.g. 0.2-0.4) makes replies "
+    p.add_argument("--temperature", type=float, default=0.4,
+                    help="Sampling temperature (default 0.4). Lower (e.g. 0.2-0.4) makes replies "
                          "more deterministic and more likely to match the closest trained example "
                          "instead of drifting to a topically-similar-but-wrong answer.")
-    p.add_argument("--top-k", type=int, default=50,
-                    help="Top-k sampling cutoff (default 50). Lower values (e.g. 5-10) also push "
+    p.add_argument("--top-k", type=int, default=10,
+                    help="Top-k sampling cutoff (default 10). Lower values (e.g. 5-10) also push "
                          "toward more deterministic, closer-to-training-data replies.")
     args = p.parse_args()
 

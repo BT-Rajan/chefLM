@@ -45,8 +45,8 @@ from chef.inference import ChefInference
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 engine = None  # set in main()
-DEFAULT_TEMPERATURE = 0.7
-DEFAULT_TOP_K = 50
+DEFAULT_TEMPERATURE = 0.4
+DEFAULT_TOP_K = 10
 
 
 @app.route("/")
@@ -100,11 +100,11 @@ def main():
     p.add_argument("--port", type=int, default=5000)
     p.add_argument("--lang", default="en", choices=["en", "ar"],
                     help="Default reply language when the page first loads")
-    p.add_argument("--temperature", type=float, default=0.7,
-                    help="Default sampling temperature (default 0.7). Lower values (0.2-0.4) "
+    p.add_argument("--temperature", type=float, default=0.4,
+                    help="Default sampling temperature (default 0.4). Lower values (0.2-0.4) "
                          "make replies more deterministic and less likely to drift off-topic.")
-    p.add_argument("--top-k", type=int, default=50,
-                    help="Default top-k sampling cutoff (default 50). Lower (5-10) also pushes "
+    p.add_argument("--top-k", type=int, default=10,
+                    help="Default top-k sampling cutoff (default 10). Lower (5-10) also pushes "
                          "toward more deterministic replies.")
     args = p.parse_args()
 
