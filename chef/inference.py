@@ -11,7 +11,7 @@ from tokenizers import Tokenizer
 from .config import ChefConfig
 from .model import ChefLM
 from .grammar import correct_grammar
-from .persona import Persona, NONE_PERSONA
+from .persona import Persona, NONE_PERSONA, apply_word_swaps
 from .guardrails import is_on_topic, looks_degenerate, best_match, FALLBACK
 
 
@@ -71,7 +71,7 @@ class ChefInference:
 
     def chat_completion(self, messages, temperature=0.4, max_tokens=64,
                         top_k=10, repetition_penalty=1.3, check_grammar=True,
-                        persona=None, lang="en",
+                        persona=None, lang="en", word_swaps=True,
                         use_guardrails=True, topic_threshold=1,
                         retrieval_threshold=0.6, **kwargs):
         """Chat completion — takes messages, returns response.
@@ -94,9 +94,16 @@ class ChefInference:
         check (see persona.py) or after a retrieval hit. Rewrites already-
         generated (or retrieved) text — never sent to the model, never
         changes what it computes. Leave None (or pass persona.NONE_PERSONA)
-        for the unmodified output. Persona rewrites are English-specific
-        word swaps; they harmlessly no-op on Arabic output rather than
-        corrupting it.
+        for the unmodified output.
+        word_swaps: whether to also run persona.apply_word_swaps ("very" ->
+        "very very", "yes" -> "yes yes", etc.) after the persona layer, when
+        persona is the "indian" persona. Default True; set False to keep the
+        persona's tag words/openers but skip this more distinctive repeated-
+        word flavor (see apply_word_swaps' docstring — some users want it
+        off even with the persona otherwise on). No-ops when persona is None
+        or NONE_PERSONA, and is safe to combine with itself (idempotent) if
+        called more than once. English-specific; harmlessly no-ops on
+        Arabic output rather than corrupting it.
         use_guardrails: (see guardrails.py) try a direct retrieval match
         first, skip generation entirely for messages that don't resemble
         anything in the training data, and swap in a fallback if
@@ -125,9 +132,7 @@ class ChefInference:
 
             retrieved, _score = best_match(last_user, lang=lang, min_similarity=retrieval_threshold)
             if retrieved is not None:
-                resp_text = retrieved
-                if persona is not None and persona is not NONE_PERSONA:
-                    resp_text = persona.apply(resp_text)
+                resp_text = self._apply_persona_layer(retrieved, persona, word_swaps)
                 return {
                     "choices": [{"message": {"role": "assistant", "content": resp_text}}],
                     "guardrail": "retrieved",
@@ -166,14 +171,28 @@ class ChefInference:
         if check_grammar:
             resp_text = correct_grammar(resp_text, lang=lang)
 
-        if persona is not None and persona is not NONE_PERSONA:
-            resp_text = persona.apply(resp_text)
+        resp_text = self._apply_persona_layer(resp_text, persona, word_swaps)
 
         return {
             "choices": [{
                 "message": {"role": "assistant", "content": resp_text},
             }],
         }
+
+    def _apply_persona_layer(self, text, persona, word_swaps):
+        """Apply the persona rewrite and (optionally) the word-swap flavor
+        pass, in that order. Shared by both the retrieval-hit path and the
+        generation path so they stay in sync. No-ops entirely if persona
+        is None/NONE_PERSONA; word_swaps only runs on top of the "indian"
+        persona specifically, since WORD_SWAPS (see persona.py) is that
+        persona's vocabulary, not a general-purpose transform.
+        """
+        if persona is None or persona is NONE_PERSONA:
+            return text
+        text = persona.apply(text)
+        if word_swaps and persona.name == "indian":
+            text = apply_word_swaps(text)
+        return text
 
     def _format_prompt(self, messages, lang="en"):
         lang_tag = "<|lang_ar|>" if lang == "ar" else "<|lang_en|>"
@@ -205,6 +224,10 @@ def main():
                     help="Output-side persona layer (see persona.py). Default: none.")
     p.add_argument("--persona-intensity", type=float, default=0.4,
                     help="0.0-1.0, how often the persona layer tags/rewrites a sentence (default 0.4)")
+    p.add_argument("--no-word-swaps", action="store_true",
+                    help="With --persona indian, skip the extra 'very very'/'yes yes' "
+                         "word-swap flavor pass (see persona.apply_word_swaps) but keep "
+                         "the persona's tag words/openers.")
     p.add_argument("--temperature", type=float, default=0.4,
                     help="Sampling temperature (default 0.4). Lower (e.g. 0.2-0.4) makes replies "
                          "more deterministic and more likely to match the closest trained example "
@@ -216,11 +239,13 @@ def main():
 
     engine = ChefInference(args.checkpoint, args.tokenizer, args.device)
     check_grammar = not args.no_grammar_check
+    word_swaps = not args.no_word_swaps
     persona = Persona(name=args.persona, intensity=args.persona_intensity) if args.persona != "none" else None
 
     if args.prompt:
         result = engine.chat_completion([{"role": "user", "content": args.prompt}],
                                          check_grammar=check_grammar, persona=persona, lang=args.lang,
+                                         word_swaps=word_swaps,
                                          temperature=args.temperature, top_k=args.top_k,
                                          use_guardrails=not args.no_guardrails)
         print(result["choices"][0]["message"]["content"])
@@ -233,6 +258,7 @@ def main():
             break
         result = engine.chat_completion([{"role": "user", "content": inp}],
                                          check_grammar=check_grammar, persona=persona, lang=args.lang,
+                                         word_swaps=word_swaps,
                                          temperature=args.temperature, top_k=args.top_k,
                                          use_guardrails=not args.no_guardrails)
         msg = result["choices"][0]["message"]

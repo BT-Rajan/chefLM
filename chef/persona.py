@@ -95,6 +95,13 @@ def apply_word_swaps(text):
     Kept separate from Persona.apply() so it can be toggled independently;
     repeating "very very" or "yes yes" is a strong, distinctive marker and
     some users will want it off even with the persona otherwise on.
+
+    Idempotent: safe to call more than once on the same text (e.g. if a
+    caller applies it, then later re-applies it to already-swapped text).
+    Each swap's pattern refuses to match if the word is already followed
+    by its own swapped continuation ("very very", "yes yes", "really
+    only"), so a second call is a no-op instead of compounding into
+    "very very very very". Verified via test_persona.py.
     """
     def repl(match):
         word = match.group(0)
@@ -103,7 +110,27 @@ def apply_word_swaps(text):
             return WORD_SWAPS[lower]
         return word
 
-    pattern = r"\b(" + "|".join(re.escape(w) for w in WORD_SWAPS) + r")\b"
+    # Per-word negative lookahead/lookbehind: don't match `word` if it's
+    # already adjacent to whatever continuation its own swap would add
+    # (e.g. don't match "very" if already followed BY "very"; don't match
+    # "really" if already followed by "only"). For swaps where the
+    # continuation repeats the word itself ("very"->"very very", "yes"->
+    # "yes yes"), a lookahead alone isn't enough — the newly-*inserted*
+    # duplicate has nothing after it, so on a second call it would match
+    # and compound ("very very very"). A lookbehind for "already preceded
+    # by this same word" catches that second instance too. Swaps whose
+    # continuation is a different word ("really"->"really only") don't
+    # need the lookbehind since "only" alone was never a matchable key.
+    parts = []
+    for word, replacement in WORD_SWAPS.items():
+        continuation = replacement[len(word):].strip()
+        lookahead = rf"(?!\s+{re.escape(continuation)}\b)"
+        if continuation.lower() == word.lower():
+            lookbehind = rf"(?<!\b{re.escape(word)}\s)"
+        else:
+            lookbehind = ""
+        parts.append(rf"{lookbehind}\b{re.escape(word)}\b{lookahead}")
+    pattern = "|".join(parts)
     return re.sub(pattern, repl, text, flags=re.IGNORECASE)
 
 

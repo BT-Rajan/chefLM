@@ -35,3 +35,15 @@ def test_word_swaps_only_touches_known_words():
     assert "very very" in swapped
     assert "yes yes" in swapped
     assert "milkshake" in swapped
+
+
+def test_word_swaps_are_idempotent():
+    # Calling apply_word_swaps more than once on the same text must not
+    # compound the swap (e.g. "very" -> "very very" -> "very very very
+    # very" on a second call). This can happen in practice if a caller
+    # accidentally re-applies it to already-swapped text.
+    text = "This is a really good, very cold milkshake. Yes indeed."
+    once = apply_word_swaps(text)
+    twice = apply_word_swaps(once)
+    thrice = apply_word_swaps(twice)
+    assert once == twice == thrice
