@@ -15,6 +15,22 @@ import argparse
 import os
 import sys
 
+# chef_server.py is launched as a plain script (not `python -m`) by both
+# installer.py (in its own venv) and a manual `python webui\chef_server.py`.
+# When Python runs a script directly, it puts the SCRIPT's own directory
+# (webui/) on sys.path[0] — not the current working directory, and not the
+# repo root that actually contains the chef/ package. That mismatch is
+# what causes "ModuleNotFoundError: No module named 'chef'" even when
+# `chef` is correctly `pip install -e .`'d elsewhere, or the checkpoint/
+# training already worked (training runs via `python -m chef`, which
+# behaves differently and doesn't hit this).
+# Fix: explicitly add the repo root (parent of this file's directory) to
+# sys.path before importing chef, so it's found no matter how this file
+# was launched or what venv it's running in.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 # Same fix as chef/__main__.py: Windows consoles default to a legacy
 # codepage that can't encode Arabic text, which would crash any print()
 # of Arabic replies or errors. See chef/__main__.py for the full comment.

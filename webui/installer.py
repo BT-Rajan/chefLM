@@ -124,6 +124,8 @@ def run_setup(lang):
                 raise RuntimeError("pip install -r requirements.txt failed.")
         if not run_cmd([VENV_PY, "-m", "pip", "install", "flask"]):
             raise RuntimeError("Failed to install flask.")
+        if not run_cmd([VENV_PY, "-m", "pip", "install", "-e", "."]):
+            raise RuntimeError("Failed to install the chef package itself.")
         set_step("deps", "done")
 
         # 3. grammar support (best-effort, never fatal)
