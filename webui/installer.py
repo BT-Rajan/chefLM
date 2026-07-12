@@ -28,7 +28,8 @@ import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+WEBUI_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(WEBUI_DIR)  # webui/ lives one level below the repo root
 INSTALLER_PORT = 8000
 CHAT_PORT = 5000
 
@@ -153,7 +154,7 @@ def run_setup(lang):
         set_step("launch", "running")
         log(f"Starting chat server on port {CHAT_PORT} (lang={lang})...")
         subprocess.Popen(
-            [VENV_PY, "chef_server.py",
+            [VENV_PY, os.path.join(WEBUI_DIR, "chef_server.py"),
              "--checkpoint", "checkpoints/final_model.pt",
              "--lang", lang, "--temperature", "0.4",
              "--port", str(CHAT_PORT)],
@@ -182,7 +183,7 @@ def run_setup(lang):
 # ---------------------------------------------------------------------------
 # HTTP server
 # ---------------------------------------------------------------------------
-STATIC_DIR = os.path.join(REPO_ROOT, "static")
+STATIC_DIR = os.path.join(WEBUI_DIR, "static")
 
 
 class Handler(BaseHTTPRequestHandler):
