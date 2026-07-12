@@ -104,12 +104,38 @@ class ChefLM(nn.Module):
         return logits, loss
 
     @torch.no_grad()
-    def generate(self, idx, max_new_tokens=64, temperature=0.7, top_k=50, **kwargs):
+    def generate(self, idx, max_new_tokens=64, temperature=0.7, top_k=50,
+                 repetition_penalty=1.3, **kwargs):
+        """Autoregressive sampling. Assumes batch size 1 (see next_id.item()
+        below), consistent with how this is actually called in inference.py.
+
+        repetition_penalty: >1.0 discourages re-picking tokens already seen
+        in the current context (divides positive logits, multiplies
+        negative ones, standard formulation). Previously there was no
+        repetition penalty at all here, so the only thing standing between
+        the model and a word/phrase loop was guardrails.looks_degenerate()
+        catching it after generation finished and discarding the whole
+        reply — this makes the loop itself less likely to start. Special/
+        control tokens (pad, bos, eos, lang tags) are exempt so the penalty
+        never discourages the model from actually emitting eos to stop.
+        Set to 1.0 to disable and get the old unpenalized behavior.
+        """
         self.eval()
+        exempt_ids = {
+            self.config.pad_id, self.config.bos_id, self.config.eos_id,
+            self.config.lang_en_id, self.config.lang_ar_id,
+        }
         for _ in range(max_new_tokens):
             idx_cond = idx[:, -self.config.max_seq_len:]
             logits, _ = self(idx_cond)
             logits = logits[:, -1, :] / temperature
+            if repetition_penalty and repetition_penalty != 1.0:
+                seen_ids = set(idx_cond[0].tolist()) - exempt_ids
+                for token_id in seen_ids:
+                    if logits[0, token_id] > 0:
+                        logits[0, token_id] /= repetition_penalty
+                    else:
+                        logits[0, token_id] *= repetition_penalty
             if top_k > 0:
                 v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
                 logits[logits < v[:, [-1]]] = float("-inf")

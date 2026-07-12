@@ -70,7 +70,8 @@ class ChefInference:
         print(f"ChefLM loaded: {total/1e6:.1f}M params")
 
     def chat_completion(self, messages, temperature=0.4, max_tokens=64,
-                        top_k=10, check_grammar=True, persona=None, lang="en",
+                        top_k=10, repetition_penalty=1.3, check_grammar=True,
+                        persona=None, lang="en",
                         use_guardrails=True, topic_threshold=1,
                         retrieval_threshold=0.6, **kwargs):
         """Chat completion — takes messages, returns response.
@@ -84,6 +85,11 @@ class ChefInference:
         LanguageTool language grammar-check runs (see grammar.py).
         check_grammar: run the reply through LanguageTool before returning
         (see grammar.py). Set False to skip it (e.g. for fast eval loops).
+        repetition_penalty: passed to model.generate (see model.py). Default
+        1.3 discourages the model from re-picking already-generated tokens,
+        which reduces word/phrase loops during sampling itself rather than
+        relying solely on guardrails.looks_degenerate() to catch them after
+        the fact. Set to 1.0 for the old unpenalized behavior.
         persona: optional persona.Persona instance, applied AFTER grammar
         check (see persona.py) or after a retrieval hit. Rewrites already-
         generated (or retrieved) text — never sent to the model, never
@@ -138,7 +144,8 @@ class ChefInference:
         prompt_tokens = len(input_ids)
         input_t = torch.tensor([input_ids], dtype=torch.long, device=self.device)
 
-        output_t, _ = self.model.generate(input_t, max_tokens, temperature, top_k)
+        output_t, _ = self.model.generate(input_t, max_tokens, temperature, top_k,
+                                           repetition_penalty=repetition_penalty)
         output_text = self.tokenizer.decode(output_t[0].tolist()[prompt_tokens:])
         # Truncate at first <|im_end|> — don't let the model leak into the next turn
         if "<|im_end|>" in output_text:

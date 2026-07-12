@@ -50,12 +50,24 @@ _WORD_RE = re.compile(r"[a-zA-Z\u0600-\u06FF]+")
 # actual topic words with anything ChefLM was trained on. Stripping these
 # leaves only the content words ("weather", "milkshake", "chocolate", ...)
 # that the score should actually be based on.
+#
+# Includes a second group of generic/temporal filler words ("today",
+# "now", "please", "really", ...) added after finding that "today" alone
+# — present in both a redirect example ("what's the news today") and a
+# banter example ("what should i do today") — was enough to push an
+# unrelated message ("what is the weather today") over best_match's
+# similarity threshold via pure word overlap, with no actual topical
+# relevance. These carry no domain signal in either direction, so they're
+# excluded the same way question words are.
 _STOPWORDS = {
     "what", "is", "are", "was", "were", "the", "a", "an", "do", "does",
     "did", "you", "your", "i", "it", "this", "that", "to", "of", "in",
     "on", "for", "and", "or", "how", "about", "can", "could", "would",
     "should", "have", "has", "had", "be", "with", "if", "me", "my",
     "like", "good", "not", "at", "as", "so", "there", "any", "some",
+    # generic/temporal filler — see comment above
+    "today", "now", "tomorrow", "yesterday", "please", "really", "very",
+    "just", "know", "think", "want", "tell", "get",
 }
 
 
