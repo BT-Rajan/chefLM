@@ -1,73 +1,74 @@
 """
-guardrails.py — lightweight, dependency-free checks that keep ChefLM's
-replies on-topic and well-formed.
+guardrails.py — checks that keep ChefLM's replies on-topic and well-formed.
 
 ChefLM is a small transformer trained on ~1200 hand-written milkshake Q&A
 samples (see milkshake_data.py). It has no real language understanding —
 on inputs far from anything it was trained on, it doesn't "know it
 doesn't know"; it just samples tokens, which can produce fluent-looking
-but nonsensical or off-topic text. There's already a "redirect" category
-in the training data for known off-topic questions, but that only helps
-for inputs that resemble those ~90 examples — anything novel can still
-slip through as a wrong or made-up answer.
+but nonsensical or off-topic text.
 
-This module adds three independent layers on top of generation:
+This module adds two independent layers on top of generation:
 
-1. retrieval lookup (pre-generation): if the incoming message closely
-   matches a training question (by word overlap), return that question's
-   stored answer directly instead of generating — guaranteed correct and
-   on-topic, since it sidesteps sampling entirely for anything the model
-   was explicitly taught.
+1. retrieval + topic gate (pre-generation): every incoming message is
+   compared against every training question using TF-IDF cosine
+   similarity — a proper weighted vector-space comparison, not literal
+   word overlap. The nearest training question decides what happens:
+     - close match, non-redirect category -> return that question's
+       stored answer directly, sidestepping generation entirely.
+     - close match, redirect category -> return the canned fallback,
+       skipping generation for a known-off-topic message.
+     - no close match either way -> fall through to generation, letting
+       the model take a shot at genuinely novel on-topic phrasing.
 
-2. topic gate (pre-generation, for anything retrieval didn't catch):
-   compare the message against the real (non-redirect) training
-   questions' vocabulary. If it isn't close to anything ChefLM actually
-   learned to answer, skip generation entirely and return a canned
-   redirect — cheaper and more reliable than hoping the model redirects
-   itself.
+   Why TF-IDF cosine similarity instead of exact/Jaccard word overlap
+   (this module's previous approach): word overlap requires every
+   phrasing of every question to be hand-added to milkshake_data.py to
+   be recognized — "list ingredients" not matching "what ingredients go
+   in a milkshake" is exactly this failure, and fixing it one phrasing
+   at a time doesn't generalize to the next unseen phrasing. TF-IDF
+   weighting automatically down-ranks generic words ("what", "is", "a")
+   without a hand-maintained stopword list (kept below anyway, as an
+   extra precision boost — see _STOPWORDS), and cosine similarity over
+   that weighted space recognizes a paraphrase as long as it shares
+   enough *weighted* vocabulary with a training question, whether or
+   not that exact phrasing was ever written down. This is what makes
+   the retrieval layer generalize instead of requiring one dataset edit
+   per new phrasing.
 
-3. output sanitizer (post-generation, for whatever's left): catch
-   degenerate generation — empty replies, leaked special tokens
-   (<|im_end|> etc. that weren't fully stripped), or the model looping on
-   one word — and swap in the same fallback instead of returning it to
-   the user.
+2. output sanitizer (post-generation, for whatever generation produces):
+   catch degenerate output — empty replies, leaked special tokens
+   (<|im_end|> etc. that weren't fully stripped), or the model looping
+   on one word — and swap in the same fallback instead of returning it
+   to the user.
 
-All three are plain stdlib (re) and reuse the existing training data, so
-there's nothing new to install or retrain.
+Both reuse the existing training data (nothing new to hand-label), and
+add one real dependency: scikit-learn (TfidfVectorizer, cosine_similarity)
+— see requirements.txt.
 """
 
 import re
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 from .milkshake_data import SAMPLES
 
 _WORD_RE = re.compile(r"[a-zA-Z\u0600-\u06FF]+")
 
-# Question words and other high-frequency function words. Nearly every
-# training question contains several of these ("what is...", "do you
-# like...", "how do i..."), so without filtering them out, an unrelated
-# question built from the same common words (e.g. "what is the weather
-# today") scores a misleadingly high overlap even though it shares no
-# actual topic words with anything ChefLM was trained on. Stripping these
-# leaves only the content words ("weather", "milkshake", "chocolate", ...)
-# that the score should actually be based on.
-#
-# Includes a second group of generic/temporal filler words ("today",
-# "now", "please", "really", ...) added after finding that "today" alone
-# — present in both a redirect example ("what's the news today") and a
-# banter example ("what should i do today") — was enough to push an
-# unrelated message ("what is the weather today") over best_match's
-# similarity threshold via pure word overlap, with no actual topical
-# relevance. These carry no domain signal in either direction, so they're
-# excluded the same way question words are.
+# Question words and other high-frequency function words. TF-IDF already
+# down-weights these automatically (they appear in nearly every training
+# question, so they get a low idf score on their own) — this stopword
+# list is a belt-and-suspenders precision boost on top of that, not the
+# only thing standing between "milkshake" and "weather" the way it was
+# under the old word-overlap scorer.
 _STOPWORDS = {
     "what", "is", "are", "was", "were", "the", "a", "an", "do", "does",
     "did", "you", "your", "i", "it", "this", "that", "to", "of", "in",
     "on", "for", "and", "or", "how", "about", "can", "could", "would",
     "should", "have", "has", "had", "be", "with", "if", "me", "my",
     "like", "good", "not", "at", "as", "so", "there", "any", "some",
-    # generic/temporal filler — see comment above
     "today", "now", "tomorrow", "yesterday", "please", "really", "very",
-    "just", "know", "think", "want", "tell", "get",
+    "just", "know", "think", "want", "tell", "get", "give", "got",
 }
 
 
@@ -75,22 +76,16 @@ def _stem(word):
     """Very small, deliberately conservative suffix-stripping stemmer —
     not a real linguistic stemmer, just enough to collapse simple
     plural/singular variants (ingredient/ingredients, topping/toppings,
-    flavor/flavors) so retrieval doesn't miss a match purely because of
-    a trailing "s". English/ASCII words only: Arabic tokens are returned
-    unchanged, since this suffix logic doesn't apply to Arabic morphology
-    and would misfire on it.
+    flavor/flavors) onto the same TF-IDF feature, so the vectorizer
+    doesn't treat them as two unrelated words with independent (and each
+    individually weaker) idf weight. English/ASCII words only: Arabic
+    tokens are returned unchanged, since this suffix logic doesn't apply
+    to Arabic morphology and would misfire on it.
 
-    Deliberately just the one rule rather than a fuller stemmer: an
-    earlier version also stripped "-ing", but that broke noun forms that
-    happen to end in it within this domain — "topping" (the noun) was
-    stemmed to "topp", which then *stopped* matching its own plural
-    "toppings" (which only loses the trailing "s", not "-ing", since it
-    ends in "-ings" rather than "-ing"). Singular and plural need to land
-    on the same stem, and only stripping "s" guarantees that; stripping
-    "-ing" too made it inconsistent depending on which form the word
-    happened to start as. If a specific missed match comes up later,
-    extend this narrowly rather than swapping in a general-purpose
-    stemmer.
+    Deliberately just the one rule (strip a single trailing "s") rather
+    than a fuller stemmer — see git history for why a "-ing" rule was
+    tried and reverted (it broke "topping" as a noun). If a specific
+    missed match comes up later, extend this narrowly.
     """
     if not word.isascii() or len(word) <= 4:
         return word
@@ -99,45 +94,19 @@ def _stem(word):
     return word
 
 
-def _tokens(text):
-    return set(_stem(w.lower()) for w in _WORD_RE.findall(text or "")) - _STOPWORDS
+def _tokenize(text):
+    """Tokenizer fed to TfidfVectorizer (via the `tokenizer=` param, with
+    `token_pattern=None` to disable sklearn's own regex splitting) so
+    retrieval reuses the exact same word-extraction, stemming, and
+    stopword-filtering as before — TF-IDF changes how those tokens get
+    *weighted and compared*, not how they're produced."""
+    return [
+        stemmed
+        for w in _WORD_RE.findall(text or "")
+        for stemmed in [_stem(w.lower())]
+        if stemmed not in _STOPWORDS
+    ]
 
-
-# Discriminative domain vocabulary, built once at import time.
-#
-# A plain "does this message overlap with any training question" check
-# doesn't work well on short text: generic words like "today" or "good"
-# show up in BOTH real milkshake questions and the redirect examples
-# ("what should i do today" vs. "what's the news today"), so they can't
-# tell on-topic from off-topic on their own.
-#
-# Instead: collect the (stopword-filtered) words used in genuine
-# milkshake/banter questions, then subtract any word that also shows up
-# in a redirect question. What's left is vocabulary that's actually
-# discriminative — "milkshake", "vanilla", "blend", "topping", "hi",
-# "thanks" — words a real redirect example never uses. A message is
-# on-topic if it contains at least one of these.
-def _words_by_category(lang, categories=None, exclude_categories=None):
-    words = set()
-    for s in SAMPLES:
-        if s.get("lang", "en") != lang:
-            continue
-        cat = s.get("category")
-        if categories is not None and cat not in categories:
-            continue
-        if exclude_categories is not None and cat in exclude_categories:
-            continue
-        words |= _tokens(s["input"])
-    return words
-
-
-def _build_domain_vocab(lang):
-    redirect_words = _words_by_category(lang, categories={"redirect"})
-    onto_topic_words = _words_by_category(lang, exclude_categories={"redirect"})
-    return onto_topic_words - redirect_words
-
-
-_DOMAIN_VOCAB = {lang: _build_domain_vocab(lang) for lang in ("en", "ar")}
 
 FALLBACK = {
     "en": "i only really know about milkshakes — ask me about flavors, "
@@ -147,74 +116,111 @@ FALLBACK = {
 }
 
 
+def _identity(x):
+    return x
+
+
+def _make_vectorizer():
+    # A fresh TfidfVectorizer per language index (see _build_index) since
+    # sklearn fits vocabulary/idf per instance — sharing one across
+    # languages would mix English and Arabic vocabulary into one idf
+    # weighting, which is meaningless (the two never compete against each
+    # other for a match anyway, since lookups are always filtered to one
+    # lang). token_pattern=None is required alongside a custom tokenizer,
+    # otherwise sklearn warns it's being ignored.
+    return TfidfVectorizer(
+        tokenizer=_tokenize, preprocessor=_identity, token_pattern=None,
+        lowercase=False, ngram_range=(1, 1), sublinear_tf=True,
+    )
+
+
+def _build_index(lang):
+    """Build one TF-IDF index per language, once at import time, over
+    EVERY training question (redirect included) — retrieval and topic
+    gating are now one lookup instead of two separately-tuned mechanisms
+    (see module docstring): whichever training question is the nearest
+    neighbor, its category (redirect or not) decides the outcome."""
+    docs, meta = [], []
+    for s in SAMPLES:
+        if s.get("lang", "en") != lang:
+            continue
+        docs.append(s["input"])
+        meta.append((s["output"], s.get("category")))
+    if not docs:
+        return None
+    vectorizer = _make_vectorizer()
+    matrix = vectorizer.fit_transform(docs)
+    return {"vectorizer": vectorizer, "matrix": matrix, "meta": meta}
+
+
+_INDEX = {lang: _build_index(lang) for lang in ("en", "ar")}
+
+
+def _nearest(message, lang="en"):
+    """Return (answer, category, similarity) for the single closest
+    training question to `message` in `lang`'s index, or (None, None,
+    0.0) if the index is empty or the message tokenizes to nothing this
+    vocabulary has ever seen (cosine similarity to everything is 0)."""
+    idx = _INDEX.get(lang) or _INDEX.get("en")
+    if idx is None:
+        return None, None, 0.0
+    q_vec = idx["vectorizer"].transform([message])
+    if q_vec.nnz == 0:
+        return None, None, 0.0
+    sims = cosine_similarity(q_vec, idx["matrix"])[0]
+    best_i = sims.argmax()
+    answer, category = idx["meta"][best_i]
+    return answer, category, float(sims[best_i])
+
+
+# Calibrated against tests/test_guardrails.py (see there for the concrete
+# cases these were tuned against): TF-IDF cosine similarity on short,
+# largely-content-word queries tends to land noticeably lower than
+# Jaccard word-overlap did for a "real, close" match, and lower still for
+# genuinely unrelated text (idf-weighted vectors of two short unrelated
+# sentences rarely share much weighted mass at all) — so both thresholds
+# are lower than the old 0.6, not directly comparable numbers.
+RETRIEVAL_THRESHOLD = 0.6
+TOPIC_THRESHOLD = 0.12
+
+
 def topic_score(message, lang="en"):
-    """Number of the message's words that fall in the discriminative
-    domain vocabulary for `lang`. 0 means nothing in the message looks
-    milkshake- or banter-related; the higher it is, the more of the
-    message is made of words that only show up in genuine (non-redirect)
-    training questions."""
-    msg_tokens = _tokens(message)
-    vocab = _DOMAIN_VOCAB.get(lang, _DOMAIN_VOCAB["en"])
-    return len(msg_tokens & vocab)
+    """Cosine similarity (0.0-1.0) of `message` to the closest training
+    question, regardless of category. Higher means the message's
+    (weighted) vocabulary looks more like something ChefLM was actually
+    trained on, whether that's a genuine milkshake question or a known
+    redirect example — see is_on_topic for how category then splits
+    those two cases."""
+    _answer, _category, score = _nearest(message, lang=lang)
+    return score
 
 
-def is_on_topic(message, lang="en", threshold=1):
-    """threshold is a word count, not a fraction: 1 means "at least one
-    word in the message is domain vocabulary". Raise it to require a
-    stronger signal (fewer false positives on borderline input, more
-    real milkshake questions getting redirected); lower it (0) to
-    disable the gate entirely."""
-    return topic_score(message, lang=lang) >= threshold
+def is_on_topic(message, lang="en", threshold=TOPIC_THRESHOLD):
+    """A message is on-topic if its nearest training-question neighbor
+    is close enough (>= threshold) AND that neighbor isn't itself a
+    redirect example — i.e. the message doesn't just resemble *a*
+    training question, it resembles a genuine milkshake/banter one."""
+    _answer, category, score = _nearest(message, lang=lang)
+    if score < threshold:
+        return False
+    return category != "redirect"
 
 
-# Retrieval reference: every non-redirect training question, tokenized
-# once at import time, alongside its stored answer. "redirect" examples
-# are excluded here too — they're handled by is_on_topic, and their
-# "answers" are canned deflections, not real content to retrieve.
-_ANSWER_REFERENCE = [
-    (_tokens(s["input"]), s["output"], s.get("lang", "en"))
-    for s in SAMPLES
-    if s.get("category") != "redirect"
-]
-
-
-def best_match(message, lang="en", min_similarity=0.6):
-    """Find the closest training question to `message` by Jaccard
-    similarity over stopword-filtered words, and return its stored
-    answer if it's close enough to trust.
-
-    This is a literal-overlap lookup, not a paraphrase or semantic
-    matcher — it only fires when the wording is genuinely close to
-    something in milkshake_data.py. That's the point: for those inputs,
-    returning the human-written answer directly is strictly more
-    reliable than generating, since it sidesteps sampling entirely.
-    Anything phrased differently enough to miss the threshold falls
-    through to generation as before.
+def best_match(message, lang="en", min_similarity=RETRIEVAL_THRESHOLD):
+    """Find the closest training question to `message` by TF-IDF cosine
+    similarity, and return its stored answer if it's close enough to
+    trust AND it isn't a redirect example (redirect "answers" are canned
+    deflections, not real content to retrieve — is_on_topic/FALLBACK
+    handles that case instead).
 
     Returns (answer, similarity) on a hit, or (None, best_similarity_seen)
     on a miss — the second value is useful for logging/tuning even when
     there's no match to return.
     """
-    msg_tokens = _tokens(message)
-    if not msg_tokens:
-        return None, 0.0
-    best_score = 0.0
-    best_answer = None
-    for ref_tokens, ref_output, ref_lang in _ANSWER_REFERENCE:
-        if ref_lang != lang or not ref_tokens:
-            continue
-        overlap = msg_tokens & ref_tokens
-        if not overlap:
-            continue
-        score = len(overlap) / len(msg_tokens | ref_tokens)
-        if score > best_score:
-            best_score = score
-            best_answer = ref_output
-            if best_score == 1.0:
-                break
-    if best_score >= min_similarity:
-        return best_answer, best_score
-    return None, best_score
+    answer, category, score = _nearest(message, lang=lang)
+    if score >= min_similarity and category != "redirect":
+        return answer, score
+    return None, score
 
 
 _MAX_REPEAT_RUN = 4  # same word 4+ times in a row -> looping

@@ -21,9 +21,16 @@ def test_clearly_unrelated_question_is_off_topic():
 
 def test_generic_words_shared_with_redirect_examples_dont_count():
     # "today" appears in both banter ("what should i do today") and
-    # redirect ("what's the news today") training questions, so on its
-    # own it must not be treated as a domain signal.
-    assert topic_score("what should i wear today") == 0
+    # redirect ("what's the news today") training questions. Under the
+    # TF-IDF/cosine-similarity scorer, topic_score is now "similarity to
+    # the single nearest training question, whatever its category" (see
+    # guardrails.py) rather than a raw domain-word count, so a message
+    # that's actually closest to a *redirect* example correctly scores
+    # HIGH (it's a strong match — just to the wrong category), not zero.
+    # is_on_topic is what actually enforces "don't treat this as a real
+    # milkshake question" by checking that category, and that's the
+    # behavior this test is really guarding.
+    assert topic_score("what should i wear today") > 0
     assert not is_on_topic("what should i wear today")
 
 

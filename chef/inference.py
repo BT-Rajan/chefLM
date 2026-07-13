@@ -12,7 +12,10 @@ from .config import ChefConfig
 from .model import ChefLM
 from .grammar import correct_grammar
 from .persona import Persona, NONE_PERSONA, apply_word_swaps
-from .guardrails import is_on_topic, looks_degenerate, best_match, FALLBACK
+from .guardrails import (
+    is_on_topic, looks_degenerate, best_match, FALLBACK,
+    TOPIC_THRESHOLD, RETRIEVAL_THRESHOLD,
+)
 
 
 class ChefInference:
@@ -72,8 +75,8 @@ class ChefInference:
     def chat_completion(self, messages, temperature=0.4, max_tokens=64,
                         top_k=10, repetition_penalty=1.3, check_grammar=True,
                         persona=None, lang="en", word_swaps=True,
-                        use_guardrails=True, topic_threshold=1,
-                        retrieval_threshold=0.6, **kwargs):
+                        use_guardrails=True, topic_threshold=TOPIC_THRESHOLD,
+                        retrieval_threshold=RETRIEVAL_THRESHOLD, **kwargs):
         """Chat completion — takes messages, returns response.
 
         lang: "en" or "ar". Forces the reply language by feeding the
@@ -110,18 +113,23 @@ class ChefInference:
         generation still comes out empty/looping/malformed. Set False to
         get the raw, unguarded model behavior (e.g. for eval scripts that
         want to measure it directly).
-        topic_threshold: passed to guardrails.is_on_topic — minimum number
-        of domain-vocabulary words (see guardrails.py) the message needs
-        to contain before it's treated as on-topic. Default 1.
+        topic_threshold: passed to guardrails.is_on_topic — minimum TF-IDF
+        cosine similarity (0.0-1.0, see guardrails.py) to the nearest
+        training question before the message is even considered for
+        on-topic status; below this it's treated as off-topic outright
+        (default guardrails.TOPIC_THRESHOLD). Raise it to require a
+        stronger resemblance to something ChefLM was actually trained on;
+        lower it (0) to disable this floor entirely (every message then
+        falls through to the category check below).
         retrieval_threshold: passed to guardrails.best_match — minimum
-        word-overlap similarity (0-1) to a training question before its
-        stored answer is returned directly instead of generating. Default
-        0.6. Checked whether lowering this helped: it doesn't without also
-        fixing _STOPWORDS — at 0.5, "what is the weather today" scores
-        exactly 0.5 against a banter example via the shared word "today"
-        (not currently a stopword) and gets falsely retrieved as an
-        on-topic answer. Lower it to retrieve more aggressively (faster,
-        more literal, more brittle to paraphrasing); raise it to lean on
+        TF-IDF cosine similarity (0.0-1.0) to a training question before
+        its stored answer is returned directly instead of generating
+        (default guardrails.RETRIEVAL_THRESHOLD). Calibrated against
+        tests/test_guardrails.py's cases — see guardrails.py's module
+        docstring for why this scale isn't directly comparable to the
+        old word-overlap version's threshold. Lower it to retrieve more
+        aggressively (faster, more literal, more brittle to paraphrasing
+        that pulls in the wrong training question); raise it to lean on
         generation more.
         """
         if use_guardrails:
